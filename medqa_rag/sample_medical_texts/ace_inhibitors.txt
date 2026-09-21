@@ -1,0 +1,47 @@
+ACE INHIBITORS - Pharmacology
+
+MECHANISM OF ACTION:
+ACE inhibitors block the angiotensin-converting enzyme, which converts angiotensin I to angiotensin II. Angiotensin II is a potent vasoconstrictor and stimulates aldosterone release, leading to sodium and water retention.
+
+By inhibiting ACE:
+1. Decreased angiotensin II → vasodilation
+2. Decreased aldosterone → reduced sodium/water retention
+3. Increased bradykinin (beneficial vasodilator)
+
+COMMON ACE INHIBITORS:
+- Lisinopril
+- Enalapril
+- Ramipril
+- Captopril
+- Benazepril
+
+INDICATIONS:
+- Hypertension
+- Heart failure
+- Post-MI with reduced EF
+- Diabetic nephropathy
+- Chronic kidney disease (proteinuria)
+
+CONTRAINDICATIONS:
+- Pregnancy (teratogenic - fetal harm)
+- Bilateral renal artery stenosis
+- History of angioedema
+- Hyperkalemia
+
+SIDE EFFECTS:
+1. Dry cough (due to increased bradykinin) - 5-20% of patients
+2. Angioedema (rare but serious)
+3. Hyperkalemia
+4. Hypotension (especially first-dose)
+5. Acute kidney injury (in renal artery stenosis)
+
+LABORATORY MONITORING:
+- Serum potassium (watch for hyperkalemia)
+- Serum creatinine (watch for AKI)
+- CBC (watch for neutropenia with captopril)
+
+CLINICAL Pearl:
+First-dose hypotension is common. Start with low doses, especially in:
+- Elderly patients
+- Those on high-dose diuretics
+- Patients with heart failure

@@ -293,7 +293,7 @@ def build_v2_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the resumable V2 MedQA benchmark")
     parser.add_argument(
         "--data-path",
-        default="/Users/mac/Developers/MedQA_RAG/dataset_MedQA-USMLE/questions/US/test.jsonl",
+        default="D:\\SDH UIT\\MLForSec\\ProjectCode\\CyberSec_in_LLMs-main\\dataset\\MedQA-USMLE\\questions\\US\\test.jsonl",
         help="Path to the MedQA JSONL test set",
     )
     parser.add_argument("--output-dir", default="results_V2", help="Directory for results_V2.json")

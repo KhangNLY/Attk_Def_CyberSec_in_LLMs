@@ -27,7 +27,7 @@ except ImportError:
 @dataclass
 class RAGConfig:
     """RAG configuration for ChromaDB."""
-    persist_dir: str = "/Users/mac/Developers/MedQA_RAG/MedQA_ChromaDB_Injected"
+    persist_dir: str = "D:\\SDH UIT\\MLForSec\\ProjectCode\\CyberSec_in_LLMs-main\\medqa_vectorstore"
     collection_name: str = "medqa_textbooks_injected"
     chunk_size: int = 1000
     chunk_overlap: int = 100
@@ -53,7 +53,7 @@ class EvalConfig:
     max_questions: Optional[int] = None
     output_dir: str = "./results"
     min_error_cases: int = 20
-    test_data_path: str = "/Users/mac/Developers/MedQA_RAG/dataset_MedQA-USMLE/questions/US/test.jsonl"
+    test_data_path: str = "D:\\SDH UIT\\MLForSec\\ProjectCode\\CyberSec_in_LLMs-main\\dataset\\MedQA-USMLE\\questions\\US\\test.jsonl"
 
 
 class Config:
@@ -117,7 +117,7 @@ class Config:
                 max_questions=int(max_q) if max_q else None,
                 output_dir=os.environ.get("EVALUATION_OUTPUT_DIR", "./results"),
                 min_error_cases=int(os.environ.get("MIN_ERROR_CASES", "20")),
-                test_data_path=os.environ.get("MEDQA_TEST_PATH", "/Users/mac/Developers/MedQA_RAG/dataset_MedQA-USMLE/questions/US/test.jsonl"),
+                test_data_path=os.environ.get("MEDQA_TEST_PATH", "D:\\SDH UIT\\MLForSec\\ProjectCode\\CyberSec_in_LLMs-main\\dataset\\MedQA-USMLE\\questions\\US\\test.jsonl"),
             )
         return self._eval
 

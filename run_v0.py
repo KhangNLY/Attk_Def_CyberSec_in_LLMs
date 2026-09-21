@@ -22,7 +22,7 @@ def _load_local_package() -> None:
 
 _load_local_package()
 
-from medqa_rag.single_question_cli import main_single_variant
+from medqa_rag.single_question_cli import main_single_variant  # type: ignore
 
 
 if __name__ == "__main__":

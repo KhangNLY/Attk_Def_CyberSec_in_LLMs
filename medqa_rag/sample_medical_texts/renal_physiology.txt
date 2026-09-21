@@ -1,0 +1,52 @@
+RENAL PHYSIOLOGY AND ACUTE KIDNEY INJURY
+
+RENAL FUNCTION OVERVIEW:
+The kidneys filter approximately 180L of blood daily, producing 1-2L of urine. They regulate:
+- Fluid and electrolyte balance
+- Acid-base balance
+- Blood pressure (via RAAS)
+- Erythropoiesis (via EPO)
+- Vitamin D activation
+
+GLOMERULAR FILTRATION RATE (GFR):
+Normal GFR: 90-120 mL/min/1.73m²
+
+CKD Stages:
+- Stage 1: GFR ≥90 (with kidney damage)
+- Stage 2: GFR 60-89
+- Stage 3a: GFR 45-59
+- Stage 3b: GFR 30-44
+- Stage 4: GFR 15-29
+- Stage 5: GFR <15 or on dialysis
+
+ACUTE KIDNEY INJURY (AKI):
+Definition (KDIGO criteria):
+- Increase in creatinine by ≥0.3 mg/dL within 48 hours
+- OR increase in creatinine to ≥1.5× baseline within 7 days
+- OR urine output <0.5 mL/kg/h for 6 hours
+
+CAUSES - "HRSCTOP":
+- Hypovolemia
+- Renal hypoperfusion (prerenal)
+- Sepsis
+- Cyclosporine/NSAIDs/ACEi
+- Toxins (contrast, aminoglycosides)
+- Obstruction (postrenal)
+- Glomerulonephritis (intrinsic)
+
+PRERENAL AKI:
+- Caused by decreased renal perfusion
+- Responds to fluid resuscitation
+- BUN:Cr ratio >20:1
+- FENa <1%
+- Urine Na <20 mEq/L
+
+INTRINSIC AKI:
+- Acute tubular necrosis (ATN) - most common
+- Acute interstitial nephritis (AIN)
+- Glomerulonephritis
+- Vasculitis
+
+POSTRENAL AKI:
+- Bilateral obstruction
+- Obstruction of solitary kidney

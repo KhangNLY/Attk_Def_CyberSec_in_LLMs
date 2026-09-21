@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medqa-rag"
+version = "2.0.0"
+requires-python = ">=3.10"
+
+[tool.setuptools.package-dir]
+medqa_rag = ""
+
+[tool.setuptools.packages]
+find = {}

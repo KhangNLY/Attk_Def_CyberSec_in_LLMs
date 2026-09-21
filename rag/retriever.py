@@ -125,7 +125,8 @@ class MedQA_RAG:
 
         # Initialize embeddings
         if use_huggingface and HF_EMBEDDINGS_AVAILABLE:
-            model_kwargs = {"device": "cpu"}
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            model_kwargs = {"device": device}
             if self.hf_token:
                 model_kwargs["token"] = self.hf_token
             self.embeddings = HuggingFaceEmbeddings(

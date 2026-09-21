@@ -170,7 +170,11 @@ REASONING: [brief explanation based on guidelines]"""
 
         # Initialize RAG (lazy - only for variants that need it)
         self._rag: Optional[MedQA_RAG] = None
-        self.rag_persist_dir = rag_persist_dir
+        # Use RAG_PERSIST_DIR from .env config if the caller didn't override
+        if rag_persist_dir == "/Users/mac/Developers/MedQA_RAG/MedQA_ChromaDB_Injected" and rag_cfg:
+            self.rag_persist_dir = rag_cfg.persist_dir
+        else:
+            self.rag_persist_dir = rag_persist_dir
         self.chroma_collection_name = chroma_collection_name or "medqa_textbooks_injected"
         self.use_existing_rag = use_existing_rag
 
@@ -928,7 +932,8 @@ Options:
             model=self.model,
             messages=messages,
             temperature=temperature,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            timeout=120,  # 2-minute timeout to prevent hanging
         )
         latency = time.time() - start
         usage = response.usage

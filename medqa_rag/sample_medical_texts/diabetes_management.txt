@@ -1,0 +1,52 @@
+DIABETES MELLITUS - Type 2 Diabetes
+
+DEFINITION:
+Type 2 diabetes mellitus (T2DM) is a metabolic disorder characterized by:
+- Insulin resistance
+- Relative insulin deficiency
+- Hyperglycemia
+
+DIAGNOSTIC CRITERIA (ADA Guidelines):
+1. Fasting plasma glucose ≥126 mg/dL (7.0 mmol/L)
+2. 2-hour plasma glucose ≥200 mg/dL during OGTT
+3. HbA1c ≥6.5%
+4. Random plasma glucose ≥200 mg/dL with classic symptoms
+
+PRE-DIABETES:
+- Impaired fasting glucose: 100-125 mg/dL
+- Impaired glucose tolerance: 140-199 mg/dL
+- HbA1c: 5.7-6.4%
+
+COMPLICATIONS:
+MICROVASCULAR:
+- Retinopathy
+- Nephropathy
+- Neuropathy
+
+MACROVASCULAR:
+- Coronary artery disease
+- Cerebrovascular disease
+- Peripheral vascular disease
+
+TREATMENT APPROACH:
+
+First-line: Metformin + Lifestyle modification
+
+Second-line options (if not at goal after 3 months):
+- Sulfonylureas (stimulate insulin secretion)
+- DPP-4 inhibitors
+- GLP-1 receptor agonists
+- SGLT2 inhibitors (also cardioprotective)
+- Thiazolidinediones
+
+Third-line: Insulin therapy
+
+SPECIAL CONSIDERATIONS:
+- Metformin contraindicated in severe renal impairment (eGFR <30)
+- SGLT2 inhibitors: Associated with euglycemic ketoacidosis risk
+- GLP-1 agonists: GI side effects, NOT for patients with gastroparesis
+
+TARGETS:
+- HbA1c: <7% for most adults
+- Preprandial glucose: 80-130 mg/dL
+- Postprandial glucose: <180 mg/dL

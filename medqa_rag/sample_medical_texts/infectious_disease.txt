@@ -1,0 +1,45 @@
+INFECTIOUS DISEASES - Antibiotic Therapy
+
+ANTIBIOTIC CLASSES AND MECHANISMS:
+
+BETA-LACTAMS:
+Mechanism: Inhibit cell wall synthesis
+
+1. Penicillins:
+   - Ampicillin/Amoxicillin: Wide spectrum, susceptible to beta-lactamases
+   - Piperacillin: Antipseudomonal coverage
+   - Nafcillin/Oxacillin: MRSA (if susceptible)
+
+2. Cephalosporins:
+   - 1st gen (cefazolin): Gram-positive cocci, some gram-negatives
+   - 2nd gen (cefuroxime): Added H. influenzae, anaerobes
+   - 3rd gen (ceftriaxone): Wide gram-negative coverage, crosses BBB
+   - 4th gen (cefepime): Pseudomonas coverage
+   - 5th gen (ceftaroline): MRSA coverage
+
+3. Carbapenems:
+   - Meropenem, Imipenem, Ertapenem
+   - Broadest spectrum beta-lactams
+   - Reserved for ESBL infections, nosocomial infections
+
+AMINOGLYCOSIDES:
+- Gentamicin, Tobramycin, Amikacin
+- Mechanism: Inhibit 30S ribosomal subunit (protein synthesis)
+- Only for serious gram-negative infections
+- Monitor: Serum levels, renal function, ototoxicity
+
+FLUOROQUINOLONES:
+- Ciprofloxacin, Levofloxacin, Moxifloxacin
+- Mechanism: Inhibit DNA gyrase and topoisomerase IV
+- Broad spectrum, including atypicals
+- BLACK BOX WARNING: Tendon rupture, QT prolongation
+
+CLINDAMYCIN:
+- 50S ribosomal inhibitor
+- Good for anaerobes, GAS, staph
+- Associated with C. difficile colitis
+
+VANCOMYCIN:
+- Cell wall synthesis inhibitor
+- Reserved for MRSA, serious gram-positive infections
+- Monitor: Trough levels (15-20 for serious infections)

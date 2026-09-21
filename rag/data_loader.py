@@ -60,9 +60,9 @@ class MedQALoader:
     """
 
     # Default to the canonical MedQA-USMLE test set on this machine
-    DEFAULT_TEST_PATH = "/Users/mac/Developers/MedQA_RAG/dataset_MedQA-USMLE/questions/US/test.jsonl"
+    DEFAULT_TEST_PATH = "D:\\SDH UIT\\MLForSec\\ProjectCode\\CyberSec_in_LLMs-main\\dataset\\MedQA-USMLE\\questions\\US\\test.jsonl"
 
-    def __init__(self, data_dir: str = "/Users/mac/Developers/MedQA_RAG/dataset_MedQA-USMLE/questions/US"):
+    def __init__(self, data_dir: str = "D:\\SDH UIT\\MLForSec\\ProjectCode\\CyberSec_in_LLMs-main\\dataset\\MedQA-USMLE\\questions\\US"):
         """
         Initialize the loader.
 
@@ -207,7 +207,7 @@ class MedQALoader:
     def load_from_directory(
         self,
         pattern: str = "*.json",
-        exclude_patterns: List[str] = None
+        exclude_patterns: Optional[List[str]] = None
     ) -> List[MedQAQuestion]:
         """Load all questions from multiple JSON files in a directory."""
         all_questions = []

@@ -1,0 +1,41 @@
+CARDIOLOGY BASICS - Medical Textbook Chapter
+
+HEART FAILURE
+Heart failure (HF) is a clinical syndrome characterized by structural or functional impairment of ventricular filling or ejection of blood. It affects approximately 6.5 million Americans and is a leading cause of morbidity and mortality.
+
+TYPES OF HEART FAILURE:
+1. Systolic Heart Failure (HFrEF): Reduced ejection fraction (<40%). The heart cannot contract effectively.
+2. Diastolic Heart Failure (HFpEF): Preserved ejection fraction. The heart cannot relax properly.
+
+LEFT-SIDED VS RIGHT-SIDED HEART FAILURE:
+- Left-sided failure: Pulmonary congestion, dyspnea, orthopnea, PND
+- Right-sided failure: Peripheral edema, JVD, hepatomegaly, ascites
+
+SYMPTOMS:
+- Dyspnea (shortness of breath)
+- Fatigue and exercise intolerance
+- Peripheral edema
+- Orthopnea (shortness of breath when lying flat)
+- Paroxysmal nocturnal dyspnea (PND)
+
+SIGNS:
+- S3 gallop (indicates volume overload)
+- Pulmonary crackles
+- Jugular venous distension (JVD)
+- Hepatomegaly
+- Peripheral edema
+
+DIAGNOSTIC TESTS:
+1. Echocardiography: Assess EF, wall motion, valvular function
+2. BNP/NT-proBNP: Elevated in heart failure
+3. Chest X-ray: Cardiomegaly, pulmonary congestion
+4. ECG: May show arrhythmias, LVH, ischemia
+
+TREATMENT:
+- ACE inhibitors (reduce mortality)
+- Beta-blockers (carvedilol, metoprolol succinate, bisoprolol)
+- Aldosterone antagonists (spironolactone)
+- Diuretics (symptom relief)
+- ARBs if ACE-I intolerant
+- Hydralazine + Nitrate in African Americans
+- Device therapy: ICD, CRT for select patients
