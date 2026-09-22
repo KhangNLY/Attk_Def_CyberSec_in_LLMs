@@ -26,11 +26,18 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 # Import agents
-from ..rag.retriever import MedQA_RAG
-from ..agents.planner import MedQA_Planner, ReasoningStep
-from ..agents.examiner import MedQA_Examiner
-from ..agents.evaluator import MedQA_Evaluator, EvaluationStatus, VerificationResult
-from ..rag.data_loader import MedQAQuestion
+try:
+    from medqa_rag.rag.retriever import MedQA_RAG
+    from medqa_rag.agents.planner import MedQA_Planner, ReasoningStep
+    from medqa_rag.agents.examiner import MedQA_Examiner
+    from medqa_rag.agents.evaluator import MedQA_Evaluator, EvaluationStatus, VerificationResult
+    from medqa_rag.rag.data_loader import MedQAQuestion
+except ImportError:
+    from rag.retriever import MedQA_RAG
+    from agents.planner import MedQA_Planner, ReasoningStep
+    from agents.examiner import MedQA_Examiner
+    from agents.evaluator import MedQA_Evaluator, EvaluationStatus, VerificationResult
+    from rag.data_loader import MedQAQuestion
 
 
 class Variant(Enum):
@@ -138,7 +145,10 @@ REASONING: [brief explanation based on guidelines]"""
             keyword_model: Model for keyword extraction (default gpt-4o-mini)
         """
         # Load from config if not provided
-        from ..config import get_api_key, get_model_config, get_rag_config
+        try:
+            from medqa_rag.config import get_api_key, get_model_config, get_rag_config
+        except ImportError:
+            from config import get_api_key, get_model_config, get_rag_config
         if api_key is None:
             api_key = get_api_key()
         cfg = get_model_config()
@@ -933,6 +943,8 @@ Options:
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
+            frequency_penalty=0.5,
+            presence_penalty=0.5,
             timeout=120,  # 2-minute timeout to prevent hanging
         )
         latency = time.time() - start

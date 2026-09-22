@@ -281,7 +281,9 @@ PREVIOUS PLAN (if any issues, refine):
                     model=self.model,
                     messages=messages,
                     temperature=0.3,
-                    max_tokens=2048
+                    max_tokens=2048,
+                    frequency_penalty=0.5,
+                    presence_penalty=0.5
                 )
                 latency = time.time() - start
 

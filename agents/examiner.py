@@ -301,7 +301,9 @@ Provide your reasoning and findings for this step.
             model=self.model,
             messages=messages,
             temperature=0.3,
-            max_tokens=512
+            max_tokens=512,
+            frequency_penalty=0.5,
+            presence_penalty=0.5
         )
 
         finding = response.choices[0].message.content.strip()
@@ -364,7 +366,9 @@ Provide your reasoning and findings for this step.
                     model=self.model,
                     messages=messages,
                     temperature=0.3,
-                    max_tokens=2048
+                    max_tokens=2048,
+                    frequency_penalty=0.5,
+                    presence_penalty=0.5
                 )
                 latency = time.time() - start
 

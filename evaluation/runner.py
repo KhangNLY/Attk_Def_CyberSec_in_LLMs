@@ -17,6 +17,27 @@ Usage:
 """
 
 import os
+import sys
+import importlib.util
+from pathlib import Path
+
+def _load_local_package() -> None:
+    root = str(Path(__file__).resolve().parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    if "medqa_rag" in sys.modules:
+        return
+    spec = importlib.util.spec_from_file_location(
+        "medqa_rag", Path(root) / "__init__.py", submodule_search_locations=[root]
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Unable to load the local medqa_rag package")
+    package = importlib.util.module_from_spec(spec)
+    sys.modules["medqa_rag"] = package
+    spec.loader.exec_module(package)
+
+_load_local_package()
+
 import json
 import argparse
 import time
@@ -29,8 +50,14 @@ from datetime import datetime
 from tqdm import tqdm
 
 # Import the MedQA system
-from ..core.system import MedQASystem, SolveResult, Variant
-from ..rag.data_loader import MedQALoader, MedQAExporter, MedQAQuestion
+try:
+    from medqa_rag.core.system import MedQASystem, SolveResult, Variant
+    from medqa_rag.rag.data_loader import MedQALoader, MedQAExporter, MedQAQuestion
+    from medqa_rag.config import load_config, get_api_key
+except ImportError:
+    from core.system import MedQASystem, SolveResult
+    from rag.data_loader import MedQALoader, MedQAExporter, MedQAQuestion
+    from config import load_config, get_api_key
 
 
 @dataclass
@@ -233,11 +260,12 @@ class MedQAEvaluator:
         api_key: str,
         data_path: str,
         output_dir: str = "./results",
-        model: str = "gpt-4o",
+        model: str = "llama-7B",
         max_questions: Optional[int] = None,
         variants: Optional[List[str]] = None,
         bootstrap_iterations: int = 10000,
-        random_seed: int = 42
+        random_seed: int = 42,
+        checkpoint_freq: int = 50
     ):
         """
         Initialize evaluator.
@@ -254,10 +282,12 @@ class MedQAEvaluator:
         """
         self.api_key = api_key
         self.data_path = data_path
-        self.output_dir = Path(output_dir)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.output_dir = Path(output_dir) / timestamp
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.bootstrap_iterations = bootstrap_iterations
         self.random_seed = random_seed
+        self.checkpoint_freq = checkpoint_freq
 
         # Default to all variants
         self.variants = variants or ["V0", "V1", "V2", "V3", "V4"]
@@ -316,7 +346,7 @@ class MedQAEvaluator:
 
             iterator = tqdm(self.questions, desc=f"{variant}") if use_tqdm else self.questions
 
-            for q in iterator:
+            for i, q in enumerate(iterator):
                 result = self.system.solve(
                     question=q.question,
                     options=q.options,
@@ -326,8 +356,15 @@ class MedQAEvaluator:
                     guidelines=question_contexts.get(q.question_id)
                 )
                 variant_results.append(result)
+                
+                # Save checkpoint periodically
+                if self.checkpoint_freq > 0 and (i + 1) % self.checkpoint_freq == 0:
+                    self._save_checkpoint(variant, variant_results)
 
             self.results[variant] = variant_results
+            # Final checkpoint for the variant
+            if self.checkpoint_freq > 0:
+                self._save_checkpoint(variant, variant_results)
 
         total_time = time.time() - start_time
 
@@ -412,6 +449,17 @@ class MedQAEvaluator:
             )
 
         return metrics
+
+    def _save_checkpoint(self, variant: str, results: List[SolveResult]) -> None:
+        """Save a checkpoint of current variant results to avoid data loss."""
+        variant_dir = self.output_dir / variant
+        variant_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint_path = variant_dir / f"results_{variant}_checkpoint.json"
+        try:
+            with open(checkpoint_path, "w", encoding="utf-8") as f:
+                json.dump([r.to_dict() for r in results], f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"\n[Evaluator] Error saving checkpoint: {e}")
 
     def _extract_errors(self, min_cases: int = 20) -> List[Dict[str, Any]]:
         """Extract error cases for analysis."""
@@ -695,7 +743,8 @@ def run_evaluation(
     output_dir: str = "./results",
     max_questions: Optional[int] = None,
     variants: Optional[List[str]] = None,
-    save_results: bool = True
+    save_results: bool = True,
+    checkpoint_freq: int = 50
 ) -> EvaluationReport:
     """
     Convenience function to run evaluation.
@@ -711,18 +760,19 @@ def run_evaluation(
     Returns:
         EvaluationReport
     """
+    load_config()
     if api_key is None:
-        api_key = os.environ.get("OPENAI_API_KEY", "")
-
+        api_key = get_api_key() or os.environ.get("OPENAI_API_KEY", "EMPTY")
     if not api_key:
-        raise ValueError("OpenAI API key required. Set OPENAI_API_KEY or pass api_key.")
+        api_key = "EMPTY"
 
     evaluator = MedQAEvaluator(
         api_key=api_key,
         data_path=data_path,
         output_dir=output_dir,
         max_questions=max_questions,
-        variants=variants
+        variants=variants,
+        checkpoint_freq=checkpoint_freq
     )
 
     report = evaluator.evaluate()
@@ -770,6 +820,12 @@ def main():
         help="Which variants to test"
     )
     parser.add_argument(
+        "--checkpoint-freq",
+        type=int,
+        default=50,
+        help="Frequency of saving checkpoints (number of questions)"
+    )
+    parser.add_argument(
         "--no-save",
         action="store_true",
         help="Don't save results to disk"
@@ -783,7 +839,8 @@ def main():
         output_dir=args.output,
         max_questions=args.max_questions,
         variants=args.variants,
-        save_results=not args.no_save
+        save_results=not args.no_save,
+        checkpoint_freq=args.checkpoint_freq
     )
 
     return report

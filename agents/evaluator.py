@@ -266,7 +266,9 @@ EXAMINER'S CONFIDENCE: {examiner_result.get('confidence', 'Not specified')}
                 model=self.model,
                 messages=messages,
                 temperature=0.2,
-                max_tokens=1024
+                max_tokens=1024,
+                frequency_penalty=0.5,
+                presence_penalty=0.5
             )
             latency = time.time() - start
 

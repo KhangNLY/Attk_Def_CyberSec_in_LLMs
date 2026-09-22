@@ -11,9 +11,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
-from ..core.system import MedQASystem
-from ..rag.data_loader import MedQALoader
-from ..single_question_cli import add_single_question_arguments, run_single_question
+try:
+    from medqa_rag.core.system import MedQASystem
+    from medqa_rag.rag.data_loader import MedQALoader
+    from medqa_rag.single_question_cli import add_single_question_arguments, run_single_question
+except ImportError:
+    from core.system import MedQASystem
+    from rag.data_loader import MedQALoader
+    from single_question_cli import add_single_question_arguments, run_single_question
 
 
 class RAGContextCache:
