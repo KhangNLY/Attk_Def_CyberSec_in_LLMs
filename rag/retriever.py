@@ -23,15 +23,19 @@ from typing import Optional, Union, List, Dict, Any
 
 # Config loader
 try:
-    from ..config import load_config, get_api_key, get_rag_config
+    from medqa_rag.config import load_config, get_api_key, get_rag_config
     CONFIG_AVAILABLE = True
 except ImportError:
-    CONFIG_AVAILABLE = False
-    def load_config(): pass
-    def get_api_key():
-        return os.environ.get("OPENAI_API_KEY")
-    def get_rag_config():
-        return None
+    try:
+        from config import load_config, get_api_key, get_rag_config
+        CONFIG_AVAILABLE = True
+    except ImportError:
+        CONFIG_AVAILABLE = False
+        def load_config(): pass
+        def get_api_key():
+            return os.environ.get("OPENAI_API_KEY")
+        def get_rag_config():
+            return None
 
 # Suppress LangChain warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="langchain")

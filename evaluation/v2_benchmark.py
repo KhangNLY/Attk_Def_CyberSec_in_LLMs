@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
+<<<<<<< HEAD
 # Ensure project root is in sys.path and medqa_rag is loaded
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
@@ -38,6 +39,16 @@ except (ImportError, ValueError):
     from medqa_rag.core.system import MedQASystem
     from medqa_rag.rag.data_loader import MedQALoader
     from medqa_rag.single_question_cli import add_single_question_arguments, run_single_question
+=======
+try:
+    from medqa_rag.core.system import MedQASystem
+    from medqa_rag.rag.data_loader import MedQALoader
+    from medqa_rag.single_question_cli import add_single_question_arguments, run_single_question
+except ImportError:
+    from core.system import MedQASystem
+    from rag.data_loader import MedQALoader
+    from single_question_cli import add_single_question_arguments, run_single_question
+>>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
 
 
 class RAGContextCache:

@@ -11,4 +11,3 @@ requires-python = ">=3.10"
 medqa_rag = ""
 
 [tool.setuptools.packages]
-find = {}

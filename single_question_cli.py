@@ -10,9 +10,14 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
-from .config import load_config
-from .core.system import MedQASystem
-from .rag.data_loader import MedQALoader
+try:
+    from medqa_rag.config import load_config
+    from medqa_rag.core.system import MedQASystem
+    from medqa_rag.rag.data_loader import MedQALoader
+except ImportError:
+    from config import load_config
+    from core.system import MedQASystem
+    from rag.data_loader import MedQALoader
 
 
 class _Tee:

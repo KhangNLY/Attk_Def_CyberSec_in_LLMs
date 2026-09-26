@@ -19,6 +19,28 @@ Usage:
 import os
 import sys
 import importlib.util
+<<<<<<< HEAD
+=======
+from pathlib import Path
+
+def _load_local_package() -> None:
+    root = str(Path(__file__).resolve().parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    if "medqa_rag" in sys.modules:
+        return
+    spec = importlib.util.spec_from_file_location(
+        "medqa_rag", Path(root) / "__init__.py", submodule_search_locations=[root]
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Unable to load the local medqa_rag package")
+    package = importlib.util.module_from_spec(spec)
+    sys.modules["medqa_rag"] = package
+    spec.loader.exec_module(package)
+
+_load_local_package()
+
+>>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
 import json
 import argparse
 import time
@@ -46,6 +68,7 @@ if "medqa_rag" not in sys.modules:
 
 # Import the MedQA system
 try:
+<<<<<<< HEAD
     if __package__ and "." in __package__:
         from ..core.system import MedQASystem, SolveResult, Variant
         from ..rag.data_loader import MedQALoader, MedQAExporter, MedQAQuestion
@@ -58,6 +81,15 @@ except (ImportError, ValueError):
     from medqa_rag.config import load_config, get_api_key, get_model_config, get_normal_model_config, get_eval_config
 
 load_config()
+=======
+    from medqa_rag.core.system import MedQASystem, SolveResult, Variant
+    from medqa_rag.rag.data_loader import MedQALoader, MedQAExporter, MedQAQuestion
+    from medqa_rag.config import load_config, get_api_key
+except ImportError:
+    from core.system import MedQASystem, SolveResult
+    from rag.data_loader import MedQALoader, MedQAExporter, MedQAQuestion
+    from config import load_config, get_api_key
+>>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
 
 
 @dataclass
@@ -265,16 +297,21 @@ class MedQAEvaluator:
         api_key: Optional[str] = None,
         data_path: Optional[str] = None,
         output_dir: str = "./results",
+<<<<<<< HEAD
         model: Optional[str] = None,
         api_base: Optional[str] = None,
         prompt_type: str = "uninstruct",
         use_struq: bool = False,
         repetition_penalty: Optional[float] = None,
         resume: bool = False,
+=======
+        model: str = "llama-7B",
+>>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
         max_questions: Optional[int] = None,
         variants: Optional[List[str]] = None,
         bootstrap_iterations: int = 10000,
-        random_seed: int = 42
+        random_seed: int = 42,
+        checkpoint_freq: int = 50
     ):
         """
         Initialize evaluator.
@@ -294,15 +331,23 @@ class MedQAEvaluator:
             bootstrap_iterations: Number of bootstrap iterations for CI
             random_seed: Random seed for reproducibility
         """
+<<<<<<< HEAD
         normal_cfg = get_normal_model_config()
         eval_cfg = get_eval_config()
 
         self.api_key = api_key or get_api_key() or "x"
         self.data_path = data_path or eval_cfg.test_data_path
         self.output_dir = Path(output_dir)
+=======
+        self.api_key = api_key
+        self.data_path = data_path
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.output_dir = Path(output_dir) / timestamp
+>>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.bootstrap_iterations = bootstrap_iterations
         self.random_seed = random_seed
+        self.checkpoint_freq = checkpoint_freq
 
         # Auto-resume: if any per-variant checkpoint exists, enable resume
         existing_checkpoints = list(self.output_dir.glob("results_V*.json"))
@@ -399,10 +444,14 @@ class MedQAEvaluator:
                 except Exception as e:
                     print(f"[Evaluator] Warning: could not load existing {variant_path}: {e}")
 
+<<<<<<< HEAD
             remaining_questions = [q for q in self.questions if q.question_id not in completed_qids]
             iterator = tqdm(remaining_questions, desc=f"{variant}") if use_tqdm else remaining_questions
 
             for idx, q in enumerate(iterator):
+=======
+            for i, q in enumerate(iterator):
+>>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
                 result = self.system.solve(
                     question=q.question,
                     options=q.options,
@@ -413,6 +462,10 @@ class MedQAEvaluator:
                     use_struq=self.use_struq
                 )
                 variant_results.append(result)
+                
+                # Save checkpoint periodically
+                if self.checkpoint_freq > 0 and (i + 1) % self.checkpoint_freq == 0:
+                    self._save_checkpoint(variant, variant_results)
 
                 # Incremental checkpointing every 5 questions or on the last question
                 if (idx + 1) % 5 == 0 or (idx + 1) == len(remaining_questions):
@@ -420,6 +473,9 @@ class MedQAEvaluator:
                         json.dump([r.to_dict() for r in variant_results], f, indent=2, ensure_ascii=False)
 
             self.results[variant] = variant_results
+            # Final checkpoint for the variant
+            if self.checkpoint_freq > 0:
+                self._save_checkpoint(variant, variant_results)
 
         total_time = time.time() - start_time
 
@@ -510,6 +566,17 @@ class MedQAEvaluator:
             )
 
         return metrics
+
+    def _save_checkpoint(self, variant: str, results: List[SolveResult]) -> None:
+        """Save a checkpoint of current variant results to avoid data loss."""
+        variant_dir = self.output_dir / variant
+        variant_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint_path = variant_dir / f"results_{variant}_checkpoint.json"
+        try:
+            with open(checkpoint_path, "w", encoding="utf-8") as f:
+                json.dump([r.to_dict() for r in results], f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"\n[Evaluator] Error saving checkpoint: {e}")
 
     def _extract_errors(self, min_cases: int = 20) -> List[Dict[str, Any]]:
         """Extract error cases for analysis."""
@@ -805,7 +872,8 @@ def run_evaluation(
     resume: bool = False,
     max_questions: Optional[int] = None,
     variants: Optional[List[str]] = None,
-    save_results: bool = True
+    save_results: bool = True,
+    checkpoint_freq: int = 50
 ) -> EvaluationReport:
     """
     Convenience function to run evaluation.
@@ -827,6 +895,15 @@ def run_evaluation(
     Returns:
         EvaluationReport
     """
+<<<<<<< HEAD
+=======
+    load_config()
+    if api_key is None:
+        api_key = get_api_key() or os.environ.get("OPENAI_API_KEY", "EMPTY")
+    if not api_key:
+        api_key = "EMPTY"
+
+>>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
     evaluator = MedQAEvaluator(
         api_key=api_key,
         data_path=data_path,
@@ -838,7 +915,8 @@ def run_evaluation(
         repetition_penalty=repetition_penalty,
         resume=resume,
         max_questions=max_questions,
-        variants=variants
+        variants=variants,
+        checkpoint_freq=checkpoint_freq
     )
 
     report = evaluator.evaluate()
@@ -930,6 +1008,12 @@ def main():
         help="Which variants to test (e.g. -v V0)"
     )
     parser.add_argument(
+        "--checkpoint-freq",
+        type=int,
+        default=50,
+        help="Frequency of saving checkpoints (number of questions)"
+    )
+    parser.add_argument(
         "--no-save",
         action="store_true",
         help="Don't save results to disk"
@@ -949,7 +1033,8 @@ def main():
         resume=args.resume,
         max_questions=args.max_questions,
         variants=args.variants,
-        save_results=not args.no_save
+        save_results=not args.no_save,
+        checkpoint_freq=args.checkpoint_freq
     )
 
     return report
