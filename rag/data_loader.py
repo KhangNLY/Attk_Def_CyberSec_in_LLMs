@@ -60,9 +60,9 @@ class MedQALoader:
     """
 
     # Default to the canonical MedQA-USMLE test set on this machine
-    DEFAULT_TEST_PATH = "D:\\SDH UIT\\MLForSec\\ProjectCode\\CyberSec_in_LLMs-main\\dataset\\MedQA-USMLE\\questions\\US\\test.jsonl"
+    DEFAULT_TEST_PATH = "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/dataset/MedQA-USMLE/questions/US/test.jsonl"
 
-    def __init__(self, data_dir: str = "D:\\SDH UIT\\MLForSec\\ProjectCode\\CyberSec_in_LLMs-main\\dataset\\MedQA-USMLE\\questions\\US"):
+    def __init__(self, data_dir: str = "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/dataset/MedQA-USMLE/questions/US/"):
         """
         Initialize the loader.
 

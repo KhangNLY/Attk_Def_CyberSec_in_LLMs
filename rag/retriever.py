@@ -98,21 +98,25 @@ class MedQA_RAG:
         hf_token: Optional[str] = None,
         collection_name: str = "medqa_textbooks_injected",
         api_base: Optional[str] = None,
-        keyword_model: str = "gpt-5.4"
+        keyword_model: str = "gpt-5.4",
+        embedding_api_base: Optional[str] = None,
+        embedding_api_key: Optional[str] = None,
     ):
         """
         Initialize the RAG module.
 
         Args:
-            openai_api_key: OpenAI API key for embeddings
+            openai_api_key: API key for embeddings (use 'x' for LAN endpoints)
             persist_directory: Directory to store the vector database
-            embedding_model: OpenAI embedding model name
+            embedding_model: OpenAI-compatible embedding model name
             chunk_size: Target size of each text chunk
             chunk_overlap: Overlap between chunks for context continuity
-            use_huggingface: Use HuggingFace embeddings instead of OpenAI
+            use_huggingface: Use HuggingFace local embeddings (requires sentence-transformers)
             hf_model_name: HuggingFace model name for embeddings
             hf_token: HuggingFace token for private models
-            api_base: Custom API base URL (for OpenAI-compatible APIs)
+            api_base: Custom API base URL for LLM calls (not embeddings)
+            embedding_api_base: Custom API base URL for embeddings (e.g. LAN endpoint)
+            embedding_api_key: API key for embedding endpoint (defaults to openai_api_key)
         """
         self.openai_api_key = openai_api_key
         self.persist_directory = persist_directory
@@ -122,8 +126,10 @@ class MedQA_RAG:
         self.hf_token = hf_token
         self.api_base = api_base
         self.keyword_model = keyword_model
+        self.embedding_api_base = embedding_api_base
+        self.embedding_api_key = embedding_api_key or openai_api_key
 
-        # Initialize embeddings
+        # Initialize embeddings — priority: HuggingFace > LAN endpoint > real OpenAI
         if use_huggingface and HF_EMBEDDINGS_AVAILABLE:
             device = "cuda" if torch.cuda.is_available() else "cpu"
             model_kwargs = {"device": device}
@@ -134,13 +140,21 @@ class MedQA_RAG:
                 model_kwargs=model_kwargs
             )
             print(f"[RAG] Using HuggingFace embeddings: {hf_model_name}")
+        elif embedding_api_base:
+            # Use a local/LAN OpenAI-compatible endpoint for embeddings
+            # This avoids needing a real OpenAI API key
+            self.embeddings = OpenAIEmbeddings(
+                model=embedding_model,
+                openai_api_key=self.embedding_api_key,
+                openai_api_base=embedding_api_base,
+            )
+            print(f"[RAG] Using LAN embeddings: {embedding_api_base} model={embedding_model}")
         else:
-            # Always use OpenAI for embeddings (Codex may not support /embeddings endpoint)
-            # Explicitly set openai_api_base to None to override any environment variable
+            # Fallback: real OpenAI API (requires a valid API key)
             self.embeddings = OpenAIEmbeddings(
                 model=embedding_model,
                 openai_api_key=openai_api_key,
-                openai_api_base=None  # Force using OpenAI's default endpoint
+                openai_api_base=None,
             )
             print(f"[RAG] Using OpenAI embeddings: {embedding_model}")
 
@@ -371,10 +385,15 @@ Answer:"""
         if filter_metadata:
             search_kwargs["filter"] = filter_metadata
 
-        results = self.vectorstore.similarity_search_with_score(
-            query=query,
-            **search_kwargs
-        )
+        try:
+            results = self.vectorstore.similarity_search_with_score(
+                query=query,
+                **search_kwargs
+            )
+        except Exception as e:
+            print(f"[RAG] Warning: similarity search failed ({type(e).__name__}: {e}). "
+                  "Returning empty context. Check EMBEDDING_API_BASE in .env.")
+            return [] if not return_scores else []
 
         # Format results
         formatted = []

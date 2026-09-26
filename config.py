@@ -27,7 +27,7 @@ except ImportError:
 @dataclass
 class RAGConfig:
     """RAG configuration for ChromaDB."""
-    persist_dir: str = "D:\\SDH UIT\\MLForSec\\ProjectCode\\CyberSec_in_LLMs-main\\medqa_vectorstore"
+    persist_dir: str = "./medqa_vectorstore"
     collection_name: str = "medqa_textbooks_injected"
     chunk_size: int = 1000
     chunk_overlap: int = 100
@@ -36,15 +36,36 @@ class RAGConfig:
     use_huggingface: bool = False
     hf_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
     hf_token: Optional[str] = None
+    # LAN endpoint for embeddings (avoids real OpenAI API key requirement)
+    embedding_api_base: Optional[str] = None
+    embedding_api_key: Optional[str] = None
 
 
 @dataclass
 class ModelConfig:
-    """Model configuration."""
+    """Model configuration for normal / baseline operation."""
     default_model: str = "gpt-4o"
     temperature: float = 0.3
     max_tokens: int = 2048
-    api_base: Optional[str] = None  # Custom API endpoint (e.g., for Codex)
+    api_base: Optional[str] = None  # Custom API endpoint
+    api_key: Optional[str] = None
+    repetition_penalty: Optional[float] = 1.15  # Anti-repetition penalty (safe default 1.1 - 1.15 for local llama)
+
+
+@dataclass
+class DefenseModelConfig:
+    """Defense model configuration (StruQ)."""
+    enabled: bool = False
+    model_name: str = "llama-7b_SpclSpclSpcl_NaiveCompletion_Q8_0"
+    api_base: Optional[str] = "http://192.168.33.128:5001/v1/"
+    api_key: Optional[str] = "x"
+    api_mode: str = "completions"  # "completions" (raw prompt) or "chat"
+    temperature: float = 0.0
+    max_tokens: int = 512
+    delimiter_style: str = "SpclSpclSpcl"
+    filter_data: bool = True
+    timeout: float = 300.0  # Waiting time in seconds for endpoint (useful for slow CPU server)
+    repetition_penalty: Optional[float] = None
 
 
 @dataclass
@@ -53,11 +74,11 @@ class EvalConfig:
     max_questions: Optional[int] = None
     output_dir: str = "./results"
     min_error_cases: int = 20
-    test_data_path: str = "D:\\SDH UIT\\MLForSec\\ProjectCode\\CyberSec_in_LLMs-main\\dataset\\MedQA-USMLE\\questions\\US\\test.jsonl"
+    test_data_path: str = "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/dataset/MedQA-USMLE/questions/US/test.jsonl"
 
 
 class Config:
-    """Configuration manager."""
+    """Configuration manager supporting both Normal and Defense models."""
 
     _instance: Optional['Config'] = None
     _loaded: bool = False
@@ -71,6 +92,8 @@ class Config:
         self._api_key: Optional[str] = None
         self._rag: Optional[RAGConfig] = None
         self._model: Optional[ModelConfig] = None
+        self._normal_model: Optional[ModelConfig] = None
+        self._defense_model: Optional[DefenseModelConfig] = None
         self._eval: Optional[EvalConfig] = None
 
     @property
@@ -95,19 +118,64 @@ class Config:
                 use_huggingface=os.environ.get("USE_HUGGINGFACE", "false").lower() == "true",
                 hf_model_name=os.environ.get("HF_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"),
                 hf_token=os.environ.get("HF_TOKEN"),
+                embedding_api_base=os.environ.get("EMBEDDING_API_BASE"),
+                embedding_api_key=os.environ.get("EMBEDDING_API_KEY") or os.environ.get("OPENAI_API_KEY"),
             )
         return self._rag
 
     @property
     def model(self) -> ModelConfig:
-        if self._model is None:
-            self._model = ModelConfig(
-                default_model=os.environ.get("DEFAULT_MODEL", "gpt-4o"),
-                temperature=float(os.environ.get("TEMPERATURE", "0.3")),
-                max_tokens=int(os.environ.get("MAX_TOKENS", "2048")),
-                api_base=os.environ.get("OPENAI_API_BASE"),
+        """Default / Normal model config (backward compatible)."""
+        return self.normal_model
+
+    @property
+    def normal_model(self) -> ModelConfig:
+        """Normal / baseline model configuration."""
+        if self._normal_model is None:
+            rep_pen_raw = os.environ.get("NORMAL_REPETITION_PENALTY") or os.environ.get("REPETITION_PENALTY")
+            rep_pen: Optional[float] = 1.15
+            if rep_pen_raw is not None and rep_pen_raw.strip():
+                try:
+                    rep_pen = float(rep_pen_raw)
+                except ValueError:
+                    rep_pen = 1.15
+
+            self._normal_model = ModelConfig(
+                default_model=os.environ.get("NORMAL_MODEL") or os.environ.get("DEFAULT_MODEL", "gpt-4o"),
+                temperature=float(os.environ.get("NORMAL_TEMPERATURE", os.environ.get("TEMPERATURE", "0.3"))),
+                max_tokens=int(os.environ.get("NORMAL_MAX_TOKENS", os.environ.get("MAX_TOKENS", "2048"))),
+                api_base=os.environ.get("NORMAL_API_BASE") or os.environ.get("OPENAI_API_BASE"),
+                api_key=os.environ.get("NORMAL_API_KEY") or os.environ.get("OPENAI_API_KEY"),
+                repetition_penalty=rep_pen,
             )
-        return self._model
+        return self._normal_model
+
+    @property
+    def defense_model(self) -> DefenseModelConfig:
+        """Defense model configuration (StruQ)."""
+        if self._defense_model is None:
+            def_rep_pen_raw = os.environ.get("DEFENSE_REPETITION_PENALTY")
+            def_rep_pen: Optional[float] = None
+            if def_rep_pen_raw is not None and def_rep_pen_raw.strip():
+                try:
+                    def_rep_pen = float(def_rep_pen_raw)
+                except ValueError:
+                    def_rep_pen = None
+
+            self._defense_model = DefenseModelConfig(
+                enabled=os.environ.get("ENABLE_DEFENSE", "false").lower() in ("true", "1", "yes"),
+                model_name=os.environ.get("DEFENSE_MODEL") or os.environ.get("STRUQ_MODEL", "llama-7b_SpclSpclSpcl_NaiveCompletion_Q8_0"),
+                api_base=os.environ.get("DEFENSE_API_BASE") or os.environ.get("STRUQ_API_BASE", "http://192.168.33.128:5001/v1/"),
+                api_key=os.environ.get("DEFENSE_API_KEY") or os.environ.get("STRUQ_API_KEY") or os.environ.get("OPENAI_API_KEY", "x"),
+                api_mode=os.environ.get("DEFENSE_API_MODE") or os.environ.get("STRUQ_API_MODE", "completions"),
+                temperature=float(os.environ.get("DEFENSE_TEMPERATURE", "0.0")),
+                max_tokens=int(os.environ.get("DEFENSE_MAX_TOKENS", "512")),
+                delimiter_style=os.environ.get("STRUQ_DELIMITER_STYLE", "SpclSpclSpcl"),
+                filter_data=os.environ.get("STRUQ_FILTER_DATA", "true").lower() in ("true", "1", "yes"),
+                timeout=float(os.environ.get("DEFENSE_TIMEOUT") or os.environ.get("STRUQ_TIMEOUT", "300.0")),
+                repetition_penalty=def_rep_pen,
+            )
+        return self._defense_model
 
     @property
     def eval(self) -> EvalConfig:
@@ -117,7 +185,7 @@ class Config:
                 max_questions=int(max_q) if max_q else None,
                 output_dir=os.environ.get("EVALUATION_OUTPUT_DIR", "./results"),
                 min_error_cases=int(os.environ.get("MIN_ERROR_CASES", "20")),
-                test_data_path=os.environ.get("MEDQA_TEST_PATH", "D:\\SDH UIT\\MLForSec\\ProjectCode\\CyberSec_in_LLMs-main\\dataset\\MedQA-USMLE\\questions\\US\\test.jsonl"),
+                test_data_path=os.environ.get("MEDQA_TEST_PATH", "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/dataset/MedQA-USMLE/questions/US/test.jsonl"),
             )
         return self._eval
 
@@ -169,6 +237,20 @@ def get_model_config() -> ModelConfig:
     if not _config._loaded:
         load_config()
     return _config.model
+
+
+def get_normal_model_config() -> ModelConfig:
+    """Get normal / baseline model configuration."""
+    if not _config._loaded:
+        load_config()
+    return _config.normal_model
+
+
+def get_defense_model_config() -> DefenseModelConfig:
+    """Get defense model configuration (StruQ)."""
+    if not _config._loaded:
+        load_config()
+    return _config.defense_model
 
 
 def get_eval_config() -> EvalConfig:

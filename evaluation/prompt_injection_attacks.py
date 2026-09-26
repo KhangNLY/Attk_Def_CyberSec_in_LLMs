@@ -26,7 +26,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -340,17 +340,26 @@ class AttackRunner:
         attacks: Optional[Sequence[_BaseAttack]] = None,
         injected_instruction: str = DEFAULT_INJECTED_INSTRUCTION,
         max_workers: int = 3,
+        display_question_report: bool = True,
+        system_label: Optional[str] = None,
+        on_question_complete: Optional[Callable[[int, int, Any, List[AttackResult], List[AttackResult]], None]] = None,
     ):
         self.system = system
         self.variants = [v.upper() for v in variants]
         self.attacks = list(attacks or ALL_ATTACKS)
         self.injected_instruction = injected_instruction
         self.max_workers = max_workers
+        self.display_question_report = display_question_report
+        self.system_label = system_label
+        self.on_question_complete = on_question_complete
 
     def run(
         self,
         questions: list,
         top_k: int = 5,
+        display_question_report: Optional[bool] = None,
+        system_label: Optional[str] = None,
+        on_question_complete: Optional[Callable[[int, int, Any, List[AttackResult], List[AttackResult]], None]] = None,
     ) -> List[AttackResult]:
         """Run full attack benchmark, returns all results."""
         all_results: List[AttackResult] = []
@@ -365,6 +374,14 @@ class AttackRunner:
             logger.info(f"  {atk.name:<20} | {atk.formula}")
             logger.info(f"  {'':20} | {atk.description}")
         logger.info("=" * 70)
+
+        effective_display = (
+            display_question_report
+            if display_question_report is not None
+            else self.display_question_report
+        )
+        effective_label = system_label if system_label is not None else self.system_label
+        cb = on_question_complete or self.on_question_complete
 
         for idx, q in enumerate(questions):
             # Parse question
@@ -403,6 +420,7 @@ class AttackRunner:
                 f"with {self.max_workers} concurrent workers..."
             )
 
+            q_results: List[AttackResult] = []
             futures_map = {}
             with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                 for variant, attack in tasks:
@@ -417,7 +435,31 @@ class AttackRunner:
 
                 for fut in as_completed(futures_map):
                     result = fut.result()
+                    q_results.append(result)
                     all_results.append(result)
+
+            # Display per-question report if enabled
+            if effective_display:
+                report_str = format_question_report(
+                    q_idx=idx + 1,
+                    total_q=total_q,
+                    q_id=q_id,
+                    correct_key=correct_key,
+                    target_key=target_key,
+                    q_results=q_results,
+                    all_results=all_results,
+                    variants=self.variants,
+                    attacks=self.attacks,
+                    system_label=effective_label,
+                )
+                logger.info("\n" + report_str)
+
+            # Invoke custom per-question callback if provided
+            if cb is not None:
+                try:
+                    cb(idx + 1, total_q, q, q_results, all_results)
+                except Exception as exc:
+                    logger.warning(f"Error in on_question_complete callback: {exc}")
 
         return all_results
 
@@ -432,6 +474,145 @@ class AttackRunner:
 # ---------------------------------------------------------------------------
 # Report generation
 # ---------------------------------------------------------------------------
+
+def format_question_report(
+    q_idx: int,
+    total_q: int,
+    q_id: str,
+    correct_key: str,
+    target_key: str,
+    q_results: List[AttackResult],
+    all_results: List[AttackResult],
+    variants: Sequence[str],
+    attacks: Optional[Sequence[Any]] = None,
+    system_label: Optional[str] = None,
+) -> str:
+    """Format a detailed console and log report after a single question run."""
+    lines = []
+    w = 76
+    header_title = f"QUESTION {q_idx}/{total_q} REPORT [{q_id}]"
+    if system_label:
+        header_title += f" -- {system_label}"
+
+    target_display = target_key if target_key else "None"
+    lines.append("=" * w)
+    lines.append(f"  {header_title}")
+    lines.append("=" * w)
+    lines.append(f"  Correct Answer: {correct_key}  |  Attack Target: {target_display}")
+    lines.append("")
+
+    atk_names_ordered: List[str] = []
+    if attacks:
+        for a in attacks:
+            name = getattr(a, "name", str(a))
+            if name not in atk_names_ordered:
+                atk_names_ordered.append(name)
+    for r in all_results:
+        if r.attack_name != "clean" and r.attack_name not in atk_names_ordered:
+            atk_names_ordered.append(r.attack_name)
+
+    atk_order_map = {name: i for i, name in enumerate(atk_names_ordered)}
+
+    def _sort_key(r: AttackResult):
+        v_idx = list(variants).index(r.variant) if r.variant in variants else 999
+        a_idx = -1 if r.attack_name == "clean" else atk_order_map.get(r.attack_name, 999)
+        return (v_idx, a_idx)
+
+    sorted_q_results = sorted(q_results, key=_sort_key)
+
+    lines.append("  Trial Outcomes for this Question:")
+    max_atk_len = max([len("Trial / Attack")] + [len(r.attack_name) for r in sorted_q_results])
+    atk_col_w = max(20, min(max_atk_len + 2, 35))
+
+    lines.append(f"  {'Variant':<9} {'Trial / Attack':<{atk_col_w}} {'Pred':<6} {'Outcome':<14} {'Security Status'}")
+    lines.append("  " + "-" * (w - 4))
+
+    for r in sorted_q_results:
+        pred = r.predicted_answer or "?"
+        if r.error:
+            outcome = "[!] Error"
+        elif r.is_correct:
+            outcome = "[OK] Correct"
+        else:
+            outcome = "[X] Wrong"
+
+        if r.attack_name == "clean":
+            sec_status = "Clean Baseline"
+        elif r.attack_success:
+            sec_status = "<<INJECTED>>"
+        else:
+            sec_status = "DEFENDED"
+
+        if r.error:
+            sec_status += f" ({r.error[:30]})"
+
+        lines.append(f"  {r.variant:<9} {r.attack_name:<{atk_col_w}} {pred:<6} {outcome:<14} {sec_status}")
+
+    lines.append("")
+    pct = (q_idx / total_q * 100.0) if total_q > 0 else 0.0
+    lines.append(f"  Cumulative Progress: {q_idx}/{total_q} questions ({pct:.1f}%)")
+    lines.append("  Clean Baseline Accuracy (Unattacked Queries):")
+    for v in variants:
+        clean_trials = [r for r in all_results if r.variant == v and r.attack_name == "clean"]
+        if clean_trials:
+            corr = sum(1 for r in clean_trials if r.is_correct)
+            tot = len(clean_trials)
+            c_acc = (corr / tot * 100.0) if tot > 0 else 0.0
+            lines.append(f"    {v}: {corr}/{tot} correct ({c_acc:.1f}%)")
+        else:
+            lines.append(f"    {v}: N/A")
+
+    if atk_names_ordered:
+        lines.append("")
+        lines.append("  Running Attack Success Rate (ASR -- lower is better, 0.0% = fully defended):")
+        atk_col_w2 = max(20, min(max([len(a) for a in atk_names_ordered] + [14]) + 2, 35))
+        var_col_w = 9
+        header = f"    {'Attack Method':<{atk_col_w2}}" + "".join(f"{v:>{var_col_w}}" for v in variants) + f"{'Average':>10}"
+        lines.append(header)
+        sep_len = atk_col_w2 + var_col_w * len(variants) + 10
+        lines.append("    " + "-" * sep_len)
+
+        for aname in atk_names_ordered:
+            row = f"    {aname:<{atk_col_w2}}"
+            atk_succ_all = 0
+            atk_tot_all = 0
+            for v in variants:
+                v_atk = [r for r in all_results if r.variant == v and r.attack_name == aname]
+                if v_atk:
+                    succ = sum(1 for r in v_atk if r.attack_success)
+                    tot = len(v_atk)
+                    asr = (succ / tot * 100.0) if tot > 0 else 0.0
+                    row += f"{asr:>8.1f}%"
+                    atk_succ_all += succ
+                    atk_tot_all += tot
+                else:
+                    row += f"{'N/A':>{var_col_w}}"
+            avg_asr = (atk_succ_all / atk_tot_all * 100.0) if atk_tot_all > 0 else 0.0
+            row += f"{avg_asr:>9.1f}%"
+            lines.append(row)
+
+        lines.append("    " + "-" * sep_len)
+        overall_row = f"    {'Overall ASR':<{atk_col_w2}}"
+        tot_succ_all = 0
+        tot_all = 0
+        for v in variants:
+            v_all = [r for r in all_results if r.variant == v and r.attack_name != "clean"]
+            if v_all:
+                s = sum(1 for r in v_all if r.attack_success)
+                t = len(v_all)
+                asr = (s / t * 100.0) if t > 0 else 0.0
+                overall_row += f"{asr:>8.1f}%"
+                tot_succ_all += s
+                tot_all += t
+            else:
+                overall_row += f"{'N/A':>{var_col_w}}"
+        tot_avg_asr = (tot_succ_all / tot_all * 100.0) if tot_all > 0 else 0.0
+        overall_row += f"{tot_avg_asr:>9.1f}%"
+        lines.append(overall_row)
+
+    lines.append("=" * w)
+    return "\n".join(lines)
+
 
 def generate_report(
     results: List[AttackResult],

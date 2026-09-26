@@ -7,13 +7,37 @@ import hashlib
 import json
 import threading
 import time
+import importlib.util
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
-from ..core.system import MedQASystem
-from ..rag.data_loader import MedQALoader
-from ..single_question_cli import add_single_question_arguments, run_single_question
+# Ensure project root is in sys.path and medqa_rag is loaded
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+if "medqa_rag" not in sys.modules:
+    _spec = importlib.util.spec_from_file_location(
+        "medqa_rag", _project_root / "__init__.py", submodule_search_locations=[str(_project_root)]
+    )
+    if _spec and _spec.loader:
+        _pkg = importlib.util.module_from_spec(_spec)
+        sys.modules["medqa_rag"] = _pkg
+        _spec.loader.exec_module(_pkg)
+
+try:
+    if __package__ and "." in __package__:
+        from ..core.system import MedQASystem
+        from ..rag.data_loader import MedQALoader
+        from ..single_question_cli import add_single_question_arguments, run_single_question
+    else:
+        raise ImportError("Top-level execution requires absolute package import")
+except (ImportError, ValueError):
+    from medqa_rag.core.system import MedQASystem
+    from medqa_rag.rag.data_loader import MedQALoader
+    from medqa_rag.single_question_cli import add_single_question_arguments, run_single_question
 
 
 class RAGContextCache:
@@ -293,7 +317,7 @@ def build_v2_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the resumable V2 MedQA benchmark")
     parser.add_argument(
         "--data-path",
-        default="D:\\SDH UIT\\MLForSec\\ProjectCode\\CyberSec_in_LLMs-main\\dataset\\MedQA-USMLE\\questions\\US\\test.jsonl",
+        default="/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/dataset/MedQA-USMLE/questions/US/test.jsonl",
         help="Path to the MedQA JSONL test set",
     )
     parser.add_argument("--output-dir", default="results_V2", help="Directory for results_V2.json")

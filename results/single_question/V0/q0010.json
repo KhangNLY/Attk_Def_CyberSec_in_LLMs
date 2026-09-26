@@ -1,12 +1,12 @@
 {
   "question_id": "q0010",
   "variant": "V0",
-  "predicted_answer": "E",
+  "predicted_answer": "A",
   "correct_answer": "E",
-  "is_correct": true,
+  "is_correct": false,
   "is_valid": true,
-  "confidence": 0.99,
-  "reasoning": "A reactive rapid HIV screening test is confirmed with an HIV-1/HIV-2 antibody differentiation immunoassay, which distinguishes antibodies against HIV-1 from HIV-2. Western blot confirmation is no longer the recommended standard.",
+  "confidence": 0.5,
+  "reasoning": "\n\nAnswer: C\n\nReasoning:\n\nThe question is asking for the most true statement about the confirmatory test.\n\nA is not true because the confirmatory test does not determine the genotype of the virus.\n\nB is not true because the confirmatory test is not a Southwestern blot, identifying the presence of DNA-binding proteins.\n\nD is not true because the confirmatory test is not a Northern blot, identifying the presence of DNA.\n\nE is not true because the confirmatory test is not an HIV-1/HIV2 antibody diff",
   "metadata": {
     "method": "direct_llm",
     "rag_trace": null,
@@ -17,17 +17,17 @@
     "agents_used": false,
     "usage_breakdown": {
       "llm": {
-        "total_tokens": 5591,
-        "prompt_tokens": 5466,
-        "completion_tokens": 125,
-        "latency": 5.675374269485474
+        "total_tokens": 769,
+        "prompt_tokens": 431,
+        "completion_tokens": 338,
+        "latency": 13.267340660095215
       }
     }
   },
   "error": null,
-  "latency_seconds": 5.675374269485474,
-  "total_tokens": 5591,
-  "prompt_tokens": 5466,
-  "completion_tokens": 125,
+  "latency_seconds": 13.267340660095215,
+  "total_tokens": 769,
+  "prompt_tokens": 431,
+  "completion_tokens": 338,
   "question_index": 10
 }

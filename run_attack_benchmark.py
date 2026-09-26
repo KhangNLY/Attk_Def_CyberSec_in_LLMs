@@ -92,7 +92,13 @@ def build_parser() -> argparse.ArgumentParser:
         default="OPENAI_API_KEY",
         help="Environment variable for the API key",
     )
+    parser.add_argument(
+        "--repetition-penalty", "--rep-pen",
+        type=float, default=None,
+        help="Anti-repetition penalty for baseline model (default: 1.15 from config; safe value 1.1 - 1.15)",
+    )
     return parser
+
 
 
 def main(argv=None) -> int:
@@ -142,10 +148,12 @@ def main(argv=None) -> int:
 
     # Initialize system
     logger.info("\n[2/4] Initializing MedQA system...")
-    system = MedQASystem(api_key=api_key)
+    system = MedQASystem(api_key=api_key, repetition_penalty=args.repetition_penalty)
     logger.info(f"  Model: {system.model}")
+    logger.info(f"  Repetition Penalty: {system.repetition_penalty}")
     logger.info(f"  RAG dir: {system.rag_persist_dir}")
     logger.info(f"  API base: {system.api_base}")
+
 
     # Run benchmark
     logger.info("\n[3/4] Running attack benchmark...")

@@ -17,6 +17,8 @@ Usage:
 """
 
 import os
+import sys
+import importlib.util
 import json
 import argparse
 import time
@@ -28,9 +30,34 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from tqdm import tqdm
 
+# Ensure project root is in sys.path and medqa_rag is loaded
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+if "medqa_rag" not in sys.modules:
+    _spec = importlib.util.spec_from_file_location(
+        "medqa_rag", _project_root / "__init__.py", submodule_search_locations=[str(_project_root)]
+    )
+    if _spec and _spec.loader:
+        _pkg = importlib.util.module_from_spec(_spec)
+        sys.modules["medqa_rag"] = _pkg
+        _spec.loader.exec_module(_pkg)
+
 # Import the MedQA system
-from ..core.system import MedQASystem, SolveResult, Variant
-from ..rag.data_loader import MedQALoader, MedQAExporter, MedQAQuestion
+try:
+    if __package__ and "." in __package__:
+        from ..core.system import MedQASystem, SolveResult, Variant
+        from ..rag.data_loader import MedQALoader, MedQAExporter, MedQAQuestion
+        from ..config import load_config, get_api_key, get_model_config, get_normal_model_config, get_eval_config
+    else:
+        raise ImportError("Top-level execution requires absolute package import")
+except (ImportError, ValueError):
+    from medqa_rag.core.system import MedQASystem, SolveResult, Variant
+    from medqa_rag.rag.data_loader import MedQALoader, MedQAExporter, MedQAQuestion
+    from medqa_rag.config import load_config, get_api_key, get_model_config, get_normal_model_config, get_eval_config
+
+load_config()
 
 
 @dataclass
@@ -90,7 +117,12 @@ class McNemarResult:
     odds_ratio: float
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return {
+            "chi2": float(self.chi2),
+            "p_value": float(self.p_value),
+            "significant": bool(self.significant),
+            "odds_ratio": float(self.odds_ratio),
+        }
 
 
 @dataclass
@@ -206,7 +238,7 @@ class EvaluationReport:
             "=" * 70,
             "ERROR ANALYSIS",
             "-" * 70,
-            f"  Total errors (V3): {len(self.error_analysis)}",
+            f"  Total errors: {len(self.error_analysis)}",
             f"  Extracted cases: {min(20, len(self.error_analysis))}"
         ])
 
@@ -230,10 +262,15 @@ class MedQAEvaluator:
 
     def __init__(
         self,
-        api_key: str,
-        data_path: str,
+        api_key: Optional[str] = None,
+        data_path: Optional[str] = None,
         output_dir: str = "./results",
-        model: str = "gpt-4o",
+        model: Optional[str] = None,
+        api_base: Optional[str] = None,
+        prompt_type: str = "uninstruct",
+        use_struq: bool = False,
+        repetition_penalty: Optional[float] = None,
+        resume: bool = False,
         max_questions: Optional[int] = None,
         variants: Optional[List[str]] = None,
         bootstrap_iterations: int = 10000,
@@ -243,21 +280,45 @@ class MedQAEvaluator:
         Initialize evaluator.
 
         Args:
-            api_key: OpenAI API key
-            data_path: Path to MedQA test data
+            api_key: OpenAI API key (or 'x' for local servers)
+            data_path: Path to MedQA test data JSON/JSONL
             output_dir: Directory for results
-            model: LLM model to use
+            model: LLM model to use (default from config/NORMAL_MODEL)
+            api_base: Custom API base URL
+            prompt_type: 'uninstruct' (raw completion for base models) or 'instruct' (chat)
+            use_struq: Whether to enable StruQ defense (default: False for baseline)
+            repetition_penalty: Anti-repetition penalty for LLM
+            resume: Resume from previous progress in output_dir
             max_questions: Limit number of questions (for testing)
             variants: List of variants to test (default: all 5)
             bootstrap_iterations: Number of bootstrap iterations for CI
             random_seed: Random seed for reproducibility
         """
-        self.api_key = api_key
-        self.data_path = data_path
+        normal_cfg = get_normal_model_config()
+        eval_cfg = get_eval_config()
+
+        self.api_key = api_key or get_api_key() or "x"
+        self.data_path = data_path or eval_cfg.test_data_path
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.bootstrap_iterations = bootstrap_iterations
         self.random_seed = random_seed
+
+        # Auto-resume: if any per-variant checkpoint exists, enable resume
+        existing_checkpoints = list(self.output_dir.glob("results_V*.json"))
+        if existing_checkpoints and not resume:
+            print(
+                f"[Evaluator] Found {len(existing_checkpoints)} existing checkpoint(s) "
+                f"in {self.output_dir} — auto-enabling resume."
+            )
+            resume = True
+        self.resume = resume
+
+        self.model = model or normal_cfg.default_model
+        self.api_base = api_base or normal_cfg.api_base
+        self.prompt_type = prompt_type
+        self.use_struq = use_struq
+        self.repetition_penalty = repetition_penalty if repetition_penalty is not None else getattr(normal_cfg, "repetition_penalty", 1.15)
 
         # Default to all variants
         self.variants = variants or ["V0", "V1", "V2", "V3", "V4"]
@@ -266,7 +327,14 @@ class MedQAEvaluator:
         self.questions = self._load_questions(max_questions)
 
         # Initialize system
-        self.system = MedQASystem(api_key, model=model)
+        self.system = MedQASystem(
+            api_key=self.api_key,
+            model=self.model,
+            api_base=self.api_base,
+            use_struq=self.use_struq,
+            prompt_type=self.prompt_type,
+            repetition_penalty=self.repetition_penalty,
+        )
 
         # Results storage
         self.results: Dict[str, List[SolveResult]] = {v: [] for v in self.variants}
@@ -298,34 +366,58 @@ class MedQAEvaluator:
         """
         start_time = time.time()
 
-        # For fair comparison, use the same questions and guidelines for all variants
-        # Pre-retrieve guidelines for each question
-        print("[Evaluator] Pre-retrieving RAG context for all questions...")
+        # Pre-retrieve RAG context only if at least one variant requires RAG
+        needs_rag = any(v in ["V1", "V2", "V3", "V4"] for v in self.variants)
         question_contexts = {}
-
-        for q in tqdm(self.questions, desc="Retrieving guidelines"):
-            context = self.system.rag.get_relevant_context(
-                q.question, q.options, top_k=5
-            )
-            question_contexts[q.question_id] = context
+        if needs_rag:
+            print("[Evaluator] Pre-retrieving RAG context for all questions...")
+            for q in tqdm(self.questions, desc="Retrieving guidelines"):
+                context = self.system.rag.get_relevant_context(
+                    q.question, q.options, top_k=5
+                )
+                question_contexts[q.question_id] = context
+        else:
+            print("[Evaluator] Skipping RAG pre-retrieval (variants tested do not use RAG)")
 
         # Run each variant
         for variant in self.variants:
-            print(f"\n[Evaluator] Running variant {variant}...")
-            variant_results = []
+            defense_tag = "StruQ" if self.use_struq else "non-StruQ baseline"
+            print(f"\n[Evaluator] Running variant {variant} ({defense_tag}, prompt_type={self.prompt_type})...")
+            variant_results: List[SolveResult] = []
+            variant_path = self.output_dir / f"results_{variant}.json"
+            completed_qids = set()
 
-            iterator = tqdm(self.questions, desc=f"{variant}") if use_tqdm else self.questions
+            if self.resume and variant_path.exists():
+                try:
+                    with open(variant_path, "r", encoding="utf-8") as f:
+                        saved_data = json.load(f)
+                    for item in saved_data:
+                        res = SolveResult(**item)
+                        variant_results.append(res)
+                        completed_qids.add(res.question_id)
+                    print(f"[Evaluator] Resumed {len(variant_results)} existing results for {variant}")
+                except Exception as e:
+                    print(f"[Evaluator] Warning: could not load existing {variant_path}: {e}")
 
-            for q in iterator:
+            remaining_questions = [q for q in self.questions if q.question_id not in completed_qids]
+            iterator = tqdm(remaining_questions, desc=f"{variant}") if use_tqdm else remaining_questions
+
+            for idx, q in enumerate(iterator):
                 result = self.system.solve(
                     question=q.question,
                     options=q.options,
                     correct_answer=q.answer,
                     question_id=q.question_id,
                     variant=variant,
-                    guidelines=question_contexts.get(q.question_id)
+                    guidelines=question_contexts.get(q.question_id),
+                    use_struq=self.use_struq
                 )
                 variant_results.append(result)
+
+                # Incremental checkpointing every 5 questions or on the last question
+                if (idx + 1) % 5 == 0 or (idx + 1) == len(remaining_questions):
+                    with open(variant_path, "w", encoding="utf-8") as f:
+                        json.dump([r.to_dict() for r in variant_results], f, indent=2, ensure_ascii=False)
 
             self.results[variant] = variant_results
 
@@ -400,6 +492,9 @@ class MedQAEvaluator:
             correct = sum(1 for r in results if r.is_correct)
             invalid = sum(1 for r in results if not r.is_valid)
             avg_conf = sum(r.confidence for r in results) / total if total else 0
+            total_tokens = sum(r.total_tokens for r in results)
+            total_time = sum(r.latency_seconds for r in results)
+            avg_latency = total_time / total if total else 0.0
 
             metrics[variant] = EvaluationMetrics(
                 variant=variant,
@@ -408,7 +503,10 @@ class MedQAEvaluator:
                 invalid=invalid,
                 accuracy=correct / total if total else 0,
                 invalid_rate=invalid / total if total else 0,
-                avg_confidence=avg_conf
+                avg_confidence=avg_conf,
+                total_tokens=total_tokens,
+                total_time_seconds=total_time,
+                avg_latency_seconds=avg_latency
             )
 
         return metrics
@@ -417,10 +515,16 @@ class MedQAEvaluator:
         """Extract error cases for analysis."""
         errors = []
 
-        # Use V3 results for error analysis (our best system)
-        v3_results = self.results.get("V3", [])
+        # Use V3 results if present, otherwise fall back to first tested variant
+        target_results = self.results.get("V3")
+        if not target_results and self.variants:
+            for v in self.variants:
+                if self.results.get(v):
+                    target_results = self.results[v]
+                    break
+        target_results = target_results or []
 
-        for result in v3_results:
+        for result in target_results:
             if not result.is_correct:
                 errors.append({
                     "question_id": result.question_id,
@@ -429,7 +533,7 @@ class MedQAEvaluator:
                     "predicted_answer": result.predicted_answer,
                     "correct_answer": result.correct_answer,
                     "confidence": result.confidence,
-                    "reasoning": result.reasoning[:1000],  # Truncate
+                    "reasoning": result.reasoning[:1000] if result.reasoning else "",
                     "metadata": result.metadata,
                     "variant": result.variant
                 })
@@ -690,9 +794,15 @@ class MedQAEvaluator:
 
 
 def run_evaluation(
-    data_path: str,
-    api_key: str = None,
+    data_path: Optional[str] = None,
+    api_key: Optional[str] = None,
     output_dir: str = "./results",
+    model: Optional[str] = None,
+    api_base: Optional[str] = None,
+    prompt_type: str = "uninstruct",
+    use_struq: bool = False,
+    repetition_penalty: Optional[float] = None,
+    resume: bool = False,
     max_questions: Optional[int] = None,
     variants: Optional[List[str]] = None,
     save_results: bool = True
@@ -701,9 +811,15 @@ def run_evaluation(
     Convenience function to run evaluation.
 
     Args:
-        data_path: Path to MedQA test JSON
-        api_key: OpenAI API key
+        data_path: Path to MedQA test JSON/JSONL (defaults to canonical MedQA test set)
+        api_key: OpenAI API key (or 'x' for local servers)
         output_dir: Output directory
+        model: LLM model name (default from config/NORMAL_MODEL)
+        api_base: API base URL (default from config/NORMAL_API_BASE)
+        prompt_type: 'uninstruct' or 'instruct' (default 'uninstruct')
+        use_struq: Enable StruQ defense (default: False for baseline)
+        repetition_penalty: Anti-repetition penalty for LLM
+        resume: Resume from existing results in output_dir
         max_questions: Limit questions (for testing)
         variants: Variants to test
         save_results: Whether to save to disk
@@ -711,16 +827,16 @@ def run_evaluation(
     Returns:
         EvaluationReport
     """
-    if api_key is None:
-        api_key = os.environ.get("OPENAI_API_KEY", "")
-
-    if not api_key:
-        raise ValueError("OpenAI API key required. Set OPENAI_API_KEY or pass api_key.")
-
     evaluator = MedQAEvaluator(
         api_key=api_key,
         data_path=data_path,
         output_dir=output_dir,
+        model=model,
+        api_base=api_base,
+        prompt_type=prompt_type,
+        use_struq=use_struq,
+        repetition_penalty=repetition_penalty,
+        resume=resume,
         max_questions=max_questions,
         variants=variants
     )
@@ -740,11 +856,14 @@ def run_evaluation(
 # =============================================================================
 
 def main():
+    normal_cfg = get_normal_model_config()
+    eval_cfg = get_eval_config()
+
     parser = argparse.ArgumentParser(description="MedQA-USMLE Evaluation")
     parser.add_argument(
         "--data", "-d",
-        required=True,
-        help="Path to MedQA test data JSON"
+        default=eval_cfg.test_data_path,
+        help=f"Path to MedQA test data JSON/JSONL (default: {eval_cfg.test_data_path})"
     )
     parser.add_argument(
         "--output", "-o",
@@ -752,9 +871,50 @@ def main():
         help="Output directory for results"
     )
     parser.add_argument(
+        "--model",
+        default=None,
+        help=f"LLM model to evaluate (default from config: {normal_cfg.default_model})"
+    )
+    parser.add_argument(
+        "--api-base",
+        default=None,
+        help="API base URL (default from config/NORMAL_API_BASE)"
+    )
+    parser.add_argument(
         "--api-key", "-k",
         default=None,
-        help="OpenAI API key (or set OPENAI_API_KEY env)"
+        help="API key (default from config/NORMAL_API_KEY or 'x')"
+    )
+    parser.add_argument(
+        "--prompt-type",
+        choices=["uninstruct", "instruct"],
+        default="uninstruct",
+        help="Prompt format: 'uninstruct' for base models like llama-7b; 'instruct' for chat-tuned models"
+    )
+    parser.add_argument(
+        "--no-struq",
+        dest="use_struq",
+        action="store_false",
+        default=False,
+        help="Run without StruQ defense (undefended baseline, default)"
+    )
+    parser.add_argument(
+        "--use-struq",
+        dest="use_struq",
+        action="store_true",
+        help="Enable StruQ defense"
+    )
+    parser.add_argument(
+        "--repetition-penalty",
+        type=float,
+        default=None,
+        help="Repetition penalty for local LLM (e.g. 1.15)"
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        default=False,
+        help="Resume evaluation from existing results in output directory"
     )
     parser.add_argument(
         "--max-questions", "-m",
@@ -767,7 +927,7 @@ def main():
         nargs="+",
         default=["V0", "V1", "V2", "V3", "V4"],
         choices=["V0", "V1", "V2", "V3", "V4"],
-        help="Which variants to test"
+        help="Which variants to test (e.g. -v V0)"
     )
     parser.add_argument(
         "--no-save",
@@ -781,6 +941,12 @@ def main():
         data_path=args.data,
         api_key=args.api_key,
         output_dir=args.output,
+        model=args.model,
+        api_base=args.api_base,
+        prompt_type=args.prompt_type,
+        use_struq=args.use_struq,
+        repetition_penalty=args.repetition_penalty,
+        resume=args.resume,
         max_questions=args.max_questions,
         variants=args.variants,
         save_results=not args.no_save

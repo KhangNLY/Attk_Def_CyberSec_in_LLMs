@@ -30,16 +30,80 @@ def parse_answer_options(raw_options: str) -> Dict[str, str]:
 
 
 def load_variant_results(results_root: Path) -> Dict[str, List[Dict[str, Any]]]:
-    """Load available V0–V4 JSON artifacts without failing on missing variants."""
+    """Load available V0–V4 JSON artifacts without failing on missing variants.
+
+    Prioritizes the new baseline run in `baselinenew/` (results_V*.json) and
+    falls back to legacy subdirectories.
+    """
     loaded: Dict[str, List[Dict[str, Any]]] = {}
+    results_root = Path(results_root)
     for variant in VARIANTS:
-        path = Path(results_root) / variant / f"results_{variant}.json"
-        if not path.exists():
-            continue
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        if isinstance(payload, list):
-            loaded[variant] = payload
+        candidates = [
+            results_root / f"results_{variant}.json",
+            results_root / "baselinenew" / f"results_{variant}.json",
+            results_root / variant / f"results_{variant}.json",
+        ]
+        for path in candidates:
+            if path.exists():
+                try:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                    if isinstance(payload, list):
+                        loaded[variant] = payload
+                        break
+                except Exception:
+                    pass
     return loaded
+
+
+def load_baseline_evaluation_report(results_root: Path) -> Dict[str, Any]:
+    """Load precalculated evaluation_report.json from baselinenew or results_root."""
+    results_root = Path(results_root)
+    candidates = [
+        results_root / "evaluation_report.json",
+        results_root / "baselinenew" / "evaluation_report.json",
+    ]
+    for path in candidates:
+        if path.exists():
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+    return {}
+
+
+def load_baseline_summary_csv(results_root: Path) -> Optional[Any]:
+    """Load results_summary.csv from baselinenew or results_root."""
+    import pandas as pd
+    results_root = Path(results_root)
+    candidates = [
+        results_root / "results_summary.csv",
+        results_root / "baselinenew" / "results_summary.csv",
+    ]
+    for path in candidates:
+        if path.exists():
+            try:
+                return pd.read_csv(path)
+            except Exception:
+                pass
+    return None
+
+
+def load_baseline_error_cases(results_root: Path) -> List[Dict[str, Any]]:
+    """Load error_cases.json from baselinenew or results_root."""
+    results_root = Path(results_root)
+    candidates = [
+        results_root / "error_cases.json",
+        results_root / "baselinenew" / "error_cases.json",
+    ]
+    for path in candidates:
+        if path.exists():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    return data
+            except Exception:
+                pass
+    return []
 
 
 def variant_summary(rows: Iterable[Dict[str, Any]]) -> Dict[str, float | int]:
@@ -50,6 +114,7 @@ def variant_summary(rows: Iterable[Dict[str, Any]]) -> Dict[str, float | int]:
     correct = sum(bool(result.get("is_correct")) for result in results)
     confidences = [float(result["confidence"]) for result in results if result.get("confidence") is not None]
     latencies = [float(result["latency_seconds"]) for result in results if result.get("latency_seconds") is not None]
+    tokens = [float(result["total_tokens"]) for result in results if result.get("total_tokens") is not None]
     return {
         "total": total,
         "valid": valid,
@@ -59,6 +124,7 @@ def variant_summary(rows: Iterable[Dict[str, Any]]) -> Dict[str, float | int]:
         "valid_rate": valid / total if total else 0.0,
         "average_confidence": fmean(confidences) if confidences else 0.0,
         "average_latency_seconds": fmean(latencies) if latencies else 0.0,
+        "average_tokens": fmean(tokens) if tokens else 0.0,
     }
 
 
@@ -80,6 +146,7 @@ def select_question_result(
         if result.get("question_id") == question_id:
             return result
     return None
+
 
 
 def answer_comparison_rows(
@@ -107,3 +174,19 @@ def answer_comparison_rows(
             "Latency (s)": result.get("latency_seconds"),
         })
     return rows
+
+
+# Convenience re-exports from attack_data
+from demo.attack_data import (
+    ATTACK_CATALOG,
+    ALL_ATTACK_NAMES,
+    DEFAULT_VARIANTS,
+    load_attack_summary,
+    load_attack_defense_report,
+    load_all_attack_results,
+    compute_metrics_from_rows,
+    build_clean_accuracy_dataframe,
+    build_asr_comparison_dataframe,
+    build_drilldown_dataframe,
+)
+

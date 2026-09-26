@@ -2,17 +2,75 @@ Running V3 for index 10 (q0010)
 
 [q0010] Solving with V3...
 [q0010] V3: Full system (with memory)
-/Users/mac/Developers/MedQA_RAG/MedAgentPro/medqa_rag/rag/retriever.py:131: LangChainDeprecationWarning: The class `HuggingFaceEmbeddings` was deprecated in LangChain 0.2.2 and will be removed in 1.0. An updated version of the class exists in the `langchain-huggingface package and should be used instead. To use it run `pip install -U `langchain-huggingface` and import as `from `langchain_huggingface import HuggingFaceEmbeddings``.
-  self.embeddings = HuggingFaceEmbeddings(
-Loading weights:   0%|          | 0/134 [00:00<?, ?it/s]Loading weights: 100%|##########| 134/134 [00:00<00:00, 12310.52it/s]
-[RAG] Using HuggingFace embeddings: lokeshch19/ModernPubMedBERT
-/Users/mac/Developers/MedQA_RAG/MedAgentPro/medqa_rag/rag/retriever.py:523: LangChainDeprecationWarning: The class `Chroma` was deprecated in LangChain 0.2.9 and will be removed in 1.0. An updated version of the class exists in the `langchain-chroma package and should be used instead. To use it run `pip install -U `langchain-chroma` and import as `from `langchain_chroma import Chroma``.
+/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/rag/retriever.py:140: LangChainDeprecationWarning: The class `OpenAIEmbeddings` was deprecated in LangChain 0.0.9 and will be removed in 1.0. An updated version of the class exists in the `langchain-openai package and should be used instead. To use it run `pip install -U `langchain-openai` and import as `from `langchain_openai import OpenAIEmbeddings``.
+  self.embeddings = OpenAIEmbeddings(
+[RAG] Using OpenAI embeddings: text-embedding-3-small
+/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/rag/retriever.py:524: LangChainDeprecationWarning: The class `Chroma` was deprecated in LangChain 0.2.9 and will be removed in 1.0. An updated version of the class exists in the `langchain-chroma package and should be used instead. To use it run `pip install -U `langchain-chroma` and import as `from `langchain_chroma import Chroma``.
   self.vectorstore = Chroma(
-[RAG] Loaded existing vector store from /Users/mac/Developers/MedQA_RAG/MedQA_ChromaDB_Injected
-[Planner] Created plan with 5 steps
-[Evaluator] Cycle 1: Initial examination
-[Evaluator] Status: Revise, Confidence: 0.94
-[Evaluator] Cycle 2: Need revision, providing feedback
-[Evaluator] Status: Revise, Confidence: 0.96
+[RAG] Loaded existing vector store from ./medqa_vectorstore
+[q0010] Error in V3: list index out of range in query.
+Traceback (most recent call last):
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/core/system.py", line 302, in solve
+    return self._solve_v3(
+           ~~~~~~~~~~~~~~^
+        question, options, correct_answer, question_id,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        guidelines, top_k, use_two_step, book_names
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/core/system.py", line 618, in _solve_v3
+    guidelines = self._get_guidelines(
+        question, options, guidelines, top_k, use_two_step, book_names
+    )
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/core/system.py", line 925, in _get_guidelines
+    return self.rag.get_relevant_context(question, options_list, top_k)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/rag/retriever.py", line 445, in get_relevant_context
+    results = self.retrieve_guidelines(query=retrieval_query, top_k=top_k)
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/rag/retriever.py", line 374, in retrieve_guidelines
+    results = self.vectorstore.similarity_search_with_score(
+        query=query,
+        **search_kwargs
+    )
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/.venv/lib/python3.14/site-packages/langchain_community/vectorstores/chroma.py", line 440, in similarity_search_with_score
+    results = self.__query_collection(
+        query_embeddings=[query_embedding],
+    ...<3 lines>...
+        **kwargs,
+    )
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/.venv/lib/python3.14/site-packages/langchain_core/utils/utils.py", line 51, in wrapper
+    return func(*args, **kwargs)
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/.venv/lib/python3.14/site-packages/langchain_community/vectorstores/chroma.py", line 157, in __query_collection
+    return self._collection.query(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        query_texts=query_texts,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        **kwargs,
+        ^^^^^^^^^
+    )
+    ^
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/.venv/lib/python3.14/site-packages/chromadb/api/models/Collection.py", line 253, in query
+    query_request = self._validate_and_prepare_query_request(
+        query_embeddings=query_embeddings,
+    ...<7 lines>...
+        include=include,
+    )
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/.venv/lib/python3.14/site-packages/chromadb/api/models/CollectionCommon.py", line 103, in wrapper
+    return func(self, *args, **kwargs)
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/.venv/lib/python3.14/site-packages/chromadb/api/models/CollectionCommon.py", line 313, in _validate_and_prepare_query_request
+    query_records = normalize_base_record_set(
+        embeddings=query_embeddings,
+    ...<2 lines>...
+        uris=query_uris,
+    )
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/.venv/lib/python3.14/site-packages/chromadb/api/types.py", line 376, in normalize_base_record_set
+    embeddings=normalize_embeddings(embeddings),
+               ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "/home/user/Desktop/Data/Code/Attk_Def_CyberSec_in_LLMs/.venv/lib/python3.14/site-packages/chromadb/api/types.py", line 246, in normalize_embeddings
+    if isinstance(target[0][0], (int, float)) and not isinstance(
+                  ~~~~~~~~~^^^
+IndexError: list index out of range in query.
 Result: results/single_question/V3/q0010.json
 Log: logs/single_question/V3/q0010.log
