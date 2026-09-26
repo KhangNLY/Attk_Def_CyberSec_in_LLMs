@@ -336,14 +336,14 @@ llama-quantize.exe ^
     Q8_0
 ```
 
-The resulting `Q8_0` GGUF file can be served locally via [llama.cpp server](https://github.com/ggml-org/llama.cpp/tree/master/examples/server) or any OpenAI-compatible inference engine (e.g., vLLM, Ollama).
+The resulting `Q8_0` GGUF file can be served locally via [KoboldCpp](https://github.com/LostRuins/koboldcpp), which exposes an OpenAI-compatible API endpoint.
 
 ### Infrastructure
 
 | Role | GPU | Model | Serving |
 |------|-----|-------|---------|
-| **Baseline** (Undefended) | 1× NVIDIA RTX 3060 | Llama 3.1 8B Instruct (Q8_0) | llama.cpp server (OpenAI-compatible API) |
-| **Defense** (SecAlign) | 1× NVIDIA RTX 5090 | Llama 3.1 8B Instruct + SecAlign LoRA (Q8_0) | llama.cpp server (OpenAI-compatible API) |
+| **Baseline** (Undefended) | 1× NVIDIA RTX 3060 | Llama 3.1 8B Instruct (Q8_0) | [KoboldCpp](https://github.com/LostRuins/koboldcpp) (OpenAI-compatible API) |
+| **Defense** (SecAlign) | 1× NVIDIA RTX 5090 | Llama 3.1 8B Instruct + SecAlign LoRA (Q8_0) | [KoboldCpp](https://github.com/LostRuins/koboldcpp) (OpenAI-compatible API) |
 
 ---
 
