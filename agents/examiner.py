@@ -395,17 +395,6 @@ Provide your reasoning and findings for this step.
             else:
                 raise
 
-<<<<<<< HEAD
-=======
-        response = self._client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=0.3,
-            max_tokens=512,
-            frequency_penalty=0.5,
-            presence_penalty=0.5
-        )
->>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
 
         finding = response.choices[0].message.content.strip()
 
@@ -467,7 +456,6 @@ Provide your reasoning and findings for this step.
         for attempt in range(max_retries):
             try:
                 start = time.time()
-<<<<<<< HEAD
                 call_kwargs = {
                     "model": self.model,
                     "messages": messages,
@@ -484,16 +472,6 @@ Provide your reasoning and findings for this step.
                         response = self._client.chat.completions.create(**call_kwargs)
                     else:
                         raise
-=======
-                response = self._client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=0.3,
-                    max_tokens=2048,
-                    frequency_penalty=0.5,
-                    presence_penalty=0.5
-                )
->>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
                 latency = time.time() - start
 
 

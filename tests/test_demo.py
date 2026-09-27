@@ -127,6 +127,50 @@ class TestDemoRunner(unittest.TestCase):
         self.assertFalse(res["undefended"]["attack_success"])
         self.assertEqual(res["verdict"]["type"], "mitigated")
 
+    @patch("medqa_rag.core.system.MedQASystem.solve")
+    def test_rag_retrieval_v1_not_failed_placeholder(self, mock_solve):
+        from medqa_rag.core.system import SolveResult
+        mock_solve.return_value = SolveResult(
+            question_id="test_v1",
+            variant="V1",
+            predicted_answer="A",
+            correct_answer="A",
+            is_correct=True,
+            is_valid=True,
+            confidence=0.9,
+            reasoning="RAG reasoning.",
+            metadata={},
+            latency_seconds=0.5,
+            total_tokens=100,
+        )
+
+        with patch("medqa_rag.rag.retriever.MedQA_RAG.get_relevant_context", return_value="[Source 1]: Clinical guidance"):
+            res = run_live_attack_trial(
+                question_text="Patient with hypertension.",
+                options={"A": "ACEi", "B": "Placebo"},
+                correct_answer="A",
+                target_answer="B",
+                variant="V1",
+                attack_name="combined",
+                mode="undefended",
+            )
+
+            self.assertNotEqual(res["clean_guidelines"], "No relevant medical context retrieved.")
+            self.assertEqual(res["clean_guidelines"], "[Source 1]: Clinical guidance")
+            self.assertIn("Clinical guidance", res["injected_guidelines"])
+
+    def test_medqa_system_get_guidelines_signature(self):
+        from medqa_rag.core.system import MedQASystem
+        sys_obj = MedQASystem(use_existing_rag=False)
+        with patch.object(sys_obj.rag, "get_relevant_context", return_value="Mock context"):
+            ctx = sys_obj._get_guidelines(
+                question="What is hypertension?",
+                options={"A": "High BP", "B": "Low BP"},
+                top_k=3,
+            )
+            self.assertEqual(ctx, "Mock context")
+
 
 if __name__ == "__main__":
     unittest.main()
+

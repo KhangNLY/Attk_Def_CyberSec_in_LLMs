@@ -323,7 +323,6 @@ EXAMINER'S CONFIDENCE: {examiner_result.get('confidence', 'Not specified')}
         import time
         try:
             start = time.time()
-<<<<<<< HEAD
             call_kwargs = {
                 "model": self.model,
                 "messages": messages,
@@ -340,16 +339,6 @@ EXAMINER'S CONFIDENCE: {examiner_result.get('confidence', 'Not specified')}
                     response = self._client.chat.completions.create(**call_kwargs)
                 else:
                     raise
-=======
-            response = self._client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.2,
-                max_tokens=1024,
-                frequency_penalty=0.5,
-                presence_penalty=0.5
-            )
->>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
             latency = time.time() - start
 
 

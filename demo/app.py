@@ -23,6 +23,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import os
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+if (ROOT / "medqa_vectorstore").exists():
+    os.environ["RAG_PERSIST_DIR"] = str((ROOT / "medqa_vectorstore").resolve())
+
 from demo.attack_data import (
     ALL_ATTACK_NAMES,
     ATTACK_CATALOG,
@@ -563,9 +568,9 @@ def _render_attack_playground(question: Dict[str, Any], question_index: int, def
         attack_suite_choice = st.selectbox(
             "Bộ tấn công (Attack Suite Filter)",
             [
-                "Tất cả (All 8 methods)",
-                "StruQ Delimiter Attacks (4 methods)",
-                "Open Prompt Injections (4 methods)",
+                "Tất cả (All 10 methods)",
+                "StruQ Delimiter Attacks (5 methods)",
+                "Open Prompt Injections (5 methods)",
             ],
             index=0,
         )
@@ -699,8 +704,18 @@ def _render_attack_playground(question: Dict[str, Any], question_index: int, def
             else:
                 st.caption("Không chạy chế độ Defended trong lần thử này.")
 
+        # RAG Clinical Context Card
+        if trial.get("variant") != "V0" and trial.get("clean_guidelines"):
+            with st.expander("📚 Tài liệu Y khoa RAG truy xuất được (Retrieved Clinical Guidelines)", expanded=True):
+                st.info(f"**Độ dài tài liệu truy xuất:** {len(trial.get('clean_guidelines', ''))} ký tự · **Variant:** `{trial.get('variant')}`")
+                st.code(trial.get("clean_guidelines") or "Trống", language="text")
+
         # Injected Prompt, Filter & Prompt Comparison Card
         with st.expander("🔍 Chi tiết Payload, Bộ Lọc Front-End & So Sánh Cấu Trúc Prompt", expanded=False):
+            if trial.get("variant") != "V0" and trial.get("clean_guidelines"):
+                st.markdown("##### 0. Tài liệu Y khoa RAG nguyên bản (Clean Retrieved Guidelines)")
+                st.code(trial.get("clean_guidelines") or "Trống", language="text")
+
             st.markdown("##### 1. Dữ liệu bị đầu độc trước khi lọc (Poisoned Target)")
             poisoned_preview = trial.get("injected_question") if trial.get("variant") == "V0" else trial.get("injected_guidelines")
             st.code(poisoned_preview or "Trống", language="text")
@@ -906,6 +921,10 @@ def _render_attack_inspector(question: Dict[str, Any]) -> None:
             "Kẻ tấn công sử dụng các delimiter đặc biệt (như `[MARK]`, `[INST]`, `[RESP]`, `### response:`) để ngắt kênh dữ liệu untrusted "
             "và giả mạo chỉ dẫn hệ thống. Bộ lọc Front-End quét đệ quy cho đến khi triệt tiêu hoàn toàn các delimiter này trước khi đưa vào LLM."
         )
+        if trial.get("variant") != "V0" and trial.get("clean_guidelines"):
+            st.markdown("**0. Tài liệu Y khoa RAG nguyên bản truy xuất từ VectorStore:**")
+            st.code(trial.get("clean_guidelines") or "None", language="text")
+
         f_left, f_right = st.columns(2)
         with f_left:
             st.markdown("**1. Văn bản bị chèn mã độc (Poisoned Target):**")

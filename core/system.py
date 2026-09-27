@@ -20,6 +20,7 @@ Usage:
 import os
 import json
 import time
+from pathlib import Path
 from openai import OpenAI
 from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass, field
@@ -27,7 +28,6 @@ from enum import Enum
 
 # Import agents
 try:
-<<<<<<< HEAD
     if __package__ and "." in __package__:
         from ..rag.retriever import MedQA_RAG
         from ..agents.planner import MedQA_Planner, ReasoningStep
@@ -55,23 +55,12 @@ except (ImportError, ValueError):
             sys.modules["medqa_rag"] = _pkg
             _spec.loader.exec_module(_pkg)
 
-=======
->>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
     from medqa_rag.rag.retriever import MedQA_RAG
     from medqa_rag.agents.planner import MedQA_Planner, ReasoningStep
     from medqa_rag.agents.examiner import MedQA_Examiner
     from medqa_rag.agents.evaluator import MedQA_Evaluator, EvaluationStatus, VerificationResult
     from medqa_rag.rag.data_loader import MedQAQuestion
-<<<<<<< HEAD
     from medqa_rag.core.struq_defense import StruQFrontEnd, format_struq_query, format_secalign_chat_query, clean_struq_output
-=======
-except ImportError:
-    from rag.retriever import MedQA_RAG
-    from agents.planner import MedQA_Planner, ReasoningStep
-    from agents.examiner import MedQA_Examiner
-    from agents.evaluator import MedQA_Evaluator, EvaluationStatus, VerificationResult
-    from rag.data_loader import MedQAQuestion
->>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
 
 
 class Variant(Enum):
@@ -363,6 +352,7 @@ REASONING: [concise evidence-based explanation]"""
         "CONF: [0.0-1.0]\n"
         "REASONING: [concise evidence-based explanation]"
     )
+    prompt_type: str = "instruct"
 
     def __init__(
         self,
@@ -426,7 +416,6 @@ REASONING: [concise evidence-based explanation]"""
         """
         # Load from config if not provided
         try:
-<<<<<<< HEAD
             if __package__ and "." in __package__:
                 from ..config import get_api_key, get_model_config, get_rag_config, get_defense_model_config
                 from .struq_defense import StruQFrontEnd
@@ -436,11 +425,6 @@ REASONING: [concise evidence-based explanation]"""
             from medqa_rag.config import get_api_key, get_model_config, get_rag_config, get_defense_model_config
             from medqa_rag.core.struq_defense import StruQFrontEnd
 
-=======
-            from medqa_rag.config import get_api_key, get_model_config, get_rag_config
-        except ImportError:
-            from config import get_api_key, get_model_config, get_rag_config
->>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
         if api_key is None:
             api_key = get_api_key()
         cfg = get_model_config()
@@ -510,10 +494,17 @@ REASONING: [concise evidence-based explanation]"""
         # Initialize RAG (lazy - only for variants that need it)
         self._rag: Optional[MedQA_RAG] = None
         # Use RAG_PERSIST_DIR from .env config if the caller didn't override
-        if rag_persist_dir == "/Users/mac/Developers/MedQA_RAG/MedQA_ChromaDB_Injected" and rag_cfg:
+        if (rag_persist_dir is None or rag_persist_dir == "/Users/mac/Developers/MedQA_RAG/MedQA_ChromaDB_Injected") and rag_cfg:
             self.rag_persist_dir = rag_cfg.persist_dir
         else:
             self.rag_persist_dir = rag_persist_dir
+
+        if self.rag_persist_dir:
+            p_persist = Path(self.rag_persist_dir)
+            if not p_persist.is_absolute() and not p_persist.exists():
+                proj_root = Path(__file__).resolve().parents[1]
+                if (proj_root / p_persist).exists():
+                    self.rag_persist_dir = str((proj_root / p_persist).resolve())
         self.chroma_collection_name = chroma_collection_name or "medqa_textbooks_injected"
         self.use_existing_rag = use_existing_rag
 
@@ -1996,19 +1987,25 @@ Options:
     def _get_guidelines(
         self,
         question: str,
-        options: Dict[str, str],
-        guidelines: Optional[str],
-        top_k: int,
-        use_two_step: bool,
-        book_names: Optional[List[str]]
+        options: Optional[Any] = None,
+        guidelines: Optional[str] = None,
+        top_k: int = 5,
+        use_two_step: bool = False,
+        book_names: Optional[List[str]] = None,
     ) -> str:
         """
         Get guidelines via either standard RAG or Two-step Retrieval.
+        Following run_attack_benchmark_struq retrieval logic.
         """
         if guidelines is not None:
             return guidelines
 
-        options_list = list(options.values()) if options else None
+        if isinstance(options, dict):
+            options_list = list(options.values())
+        elif isinstance(options, (list, tuple)):
+            options_list = list(options)
+        else:
+            options_list = None
 
         if use_two_step:
             print(f"[{question}] Using Two-step Retrieval (keyword filtering)")
@@ -2020,7 +2017,7 @@ Options:
                 use_metadata_filter=book_names is not None
             )
 
-        # Standard RAG
+        # Standard RAG (matches run_attack_benchmark_struq)
         return self.rag.get_relevant_context(question, options_list, top_k)
 
     def _call_llm(
@@ -2033,7 +2030,6 @@ Options:
         """Call the LLM and return (response, usage_dict)."""
         import time
         start = time.time()
-<<<<<<< HEAD
         rep_pen = repetition_penalty if repetition_penalty is not None else self.repetition_penalty
 
         call_kwargs: Dict[str, Any] = {
@@ -2056,17 +2052,6 @@ Options:
             else:
                 raise
 
-=======
-        response = self._client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            frequency_penalty=0.5,
-            presence_penalty=0.5,
-            timeout=120,  # 2-minute timeout to prevent hanging
-        )
->>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
         latency = time.time() - start
         usage = response.usage
         return response.choices[0].message.content, {

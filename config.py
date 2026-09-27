@@ -108,9 +108,15 @@ class Config:
     @property
     def rag(self) -> RAGConfig:
         if self._rag is None:
+            raw_persist = os.environ.get("RAG_PERSIST_DIR", "./medqa_vectorstore")
+            p_persist = Path(raw_persist)
+            if not p_persist.is_absolute() and not p_persist.exists():
+                proj_root = Path(__file__).resolve().parent
+                if (proj_root / p_persist).exists():
+                    p_persist = (proj_root / p_persist).resolve()
             self._rag = RAGConfig(
-            persist_dir=os.environ.get("RAG_PERSIST_DIR", "./medqa_vectorstore"),
-            collection_name=os.environ.get("CHROMA_COLLECTION_NAME", "medqa_textbooks_injected"),
+                persist_dir=str(p_persist),
+                collection_name=os.environ.get("CHROMA_COLLECTION_NAME", "medqa_textbooks_injected"),
                 chunk_size=int(os.environ.get("RAG_CHUNK_SIZE", "1000")),
                 chunk_overlap=int(os.environ.get("RAG_CHUNK_OVERLAP", "100")),
                 top_k=int(os.environ.get("RAG_TOP_K", "5")),

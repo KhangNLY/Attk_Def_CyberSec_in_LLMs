@@ -23,19 +23,15 @@ from typing import Optional, Union, List, Dict, Any
 
 # Config loader
 try:
-    from medqa_rag.config import load_config, get_api_key, get_rag_config
+    from ..config import load_config, get_api_key, get_rag_config
     CONFIG_AVAILABLE = True
 except ImportError:
-    try:
-        from config import load_config, get_api_key, get_rag_config
-        CONFIG_AVAILABLE = True
-    except ImportError:
-        CONFIG_AVAILABLE = False
-        def load_config(): pass
-        def get_api_key():
-            return os.environ.get("OPENAI_API_KEY")
-        def get_rag_config():
-            return None
+    CONFIG_AVAILABLE = False
+    def load_config(): pass
+    def get_api_key():
+        return os.environ.get("OPENAI_API_KEY")
+    def get_rag_config():
+        return None
 
 # Suppress LangChain warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="langchain")
@@ -122,7 +118,13 @@ class MedQA_RAG:
             embedding_api_base: Custom API base URL for embeddings (e.g. LAN endpoint)
             embedding_api_key: API key for embedding endpoint (defaults to openai_api_key)
         """
-        self.openai_api_key = openai_api_key
+        self.openai_api_key = openai_api_key or os.environ.get("OPENAI_API_KEY")
+        if persist_directory:
+            p_persist = Path(persist_directory)
+            if not p_persist.is_absolute() and not p_persist.exists():
+                repo_root = Path(__file__).resolve().parents[1]
+                if (repo_root / p_persist).exists():
+                    persist_directory = str((repo_root / p_persist).resolve())
         self.persist_directory = persist_directory
         self.collection_name = collection_name
         self.chunk_size = chunk_size
@@ -540,8 +542,16 @@ Answer:"""
 
     def _load_existing_store(self) -> bool:
         """Load an existing vector store from disk."""
-        if not os.path.exists(self.persist_directory):
+        if not self.persist_directory:
             return False
+
+        if not os.path.exists(self.persist_directory):
+            repo_root = Path(__file__).resolve().parents[1]
+            candidate = repo_root / self.persist_directory
+            if candidate.exists():
+                self.persist_directory = str(candidate.resolve())
+            else:
+                return False
 
         try:
             self.vectorstore = Chroma(
@@ -668,7 +678,8 @@ Do not answer the question. Output ONLY a comma-separated list of keywords. Keep
                     {"role": "user", "content": f"Clinical Case: {question_text}\nExtract keywords:"}
                 ],
                 temperature=0.0,
-                max_tokens=60
+                max_tokens=60,
+                timeout=15.0,
             )
 
             raw = response.choices[0].message.content.strip()

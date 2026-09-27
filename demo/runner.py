@@ -17,8 +17,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+logger = logging.getLogger("demo.runner")
+
+
 def bootstrap_medqa_rag() -> None:
     """Ensure the project root is registered as the ``medqa_rag`` package in sys.modules."""
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    if (ROOT / "medqa_vectorstore").exists():
+        os.environ["RAG_PERSIST_DIR"] = str((ROOT / "medqa_vectorstore").resolve())
     if "medqa_rag" in sys.modules:
         return
     spec = importlib.util.spec_from_file_location(
@@ -201,6 +207,7 @@ def run_custom_variant(
         model=normal_cfg.default_model,
         api_base=normal_cfg.api_base,
         repetition_penalty=normal_cfg.repetition_penalty,
+        rag_persist_dir=str((ROOT / "medqa_vectorstore").resolve()) if (ROOT / "medqa_vectorstore").exists() else None,
         use_two_step_retrieval=two_step_retrieval,
         use_struq=use_struq,
         prompt_type=prompt_type,
@@ -560,11 +567,13 @@ def run_live_attack_trial(
         attack_obj = get_attack_instance(attack_name, delimiter_style=defense_cfg.delimiter_style)
 
     # 2. Setup baseline system (Undefended)
+    vectorstore_path = str((ROOT / "medqa_vectorstore").resolve()) if (ROOT / "medqa_vectorstore").exists() else None
     undef_system = MedQASystem(
         api_key=normal_cfg.api_key or "x",
         model=normal_cfg.default_model,
         api_base=normal_cfg.api_base,
         repetition_penalty=normal_cfg.repetition_penalty,
+        rag_persist_dir=vectorstore_path,
         use_two_step_retrieval=two_step_retrieval,
         use_struq=False,
         prompt_type=baseline_prompt_type,
@@ -577,6 +586,7 @@ def run_live_attack_trial(
         api_key=normal_cfg.api_key or "x",
         model=normal_cfg.default_model,
         api_base=normal_cfg.api_base,
+        rag_persist_dir=vectorstore_path,
         use_two_step_retrieval=two_step_retrieval,
         use_struq=True,
         prompt_type=_def_prompt_type,
@@ -592,16 +602,39 @@ def run_live_attack_trial(
     # 4. Target context & injection following run_attack_benchmark_struq.py
     clean_guidelines: Optional[str] = None
     if variant != "V0":
+        options_list = list(options.values()) if isinstance(options, dict) else (list(options) if options else None)
         try:
-            clean_guidelines = undef_system._get_guidelines(
-                question=question_text,
-                options=options,
-                guidelines=None,
-                top_k=top_k,
-                use_two_step=two_step_retrieval,
-            )
-        except Exception:
-            clean_guidelines = "No relevant medical context retrieved."
+            if two_step_retrieval:
+                clean_guidelines = undef_system._get_guidelines(
+                    question=question_text,
+                    options=options,
+                    guidelines=None,
+                    top_k=top_k,
+                    use_two_step=True,
+                    book_names=None,
+                )
+            else:
+                # Direct standard RAG retrieval following run_attack_benchmark_struq
+                clean_guidelines = undef_system.rag.get_relevant_context(
+                    question=question_text,
+                    options=options_list,
+                    top_k=top_k,
+                )
+        except Exception as e:
+            logger.warning(f"Primary RAG retrieval failed: {e}")
+            try:
+                # Fallback following run_attack_benchmark_struq
+                clean_guidelines = undef_system.rag.get_relevant_context(
+                    question=question_text,
+                    options=options_list,
+                    top_k=top_k,
+                )
+            except Exception as e2:
+                logger.error(f"Fallback RAG retrieval failed: {e2}")
+                clean_guidelines = "No relevant medical context found."
+
+        if not clean_guidelines:
+            clean_guidelines = "No relevant medical context found."
 
     # Craft payload based on variant attack vector
     injected_question = question_text
@@ -928,6 +961,7 @@ def run_batch_benchmark(
             model=normal_cfg.default_model,
             api_base=normal_cfg.api_base,
             repetition_penalty=base_rep_pen,
+            rag_persist_dir=str((ROOT / "medqa_vectorstore").resolve()) if (ROOT / "medqa_vectorstore").exists() else None,
             use_two_step_retrieval=two_step_retrieval,
             use_struq=False,
             prompt_type=prompt_type,
@@ -957,6 +991,7 @@ def run_batch_benchmark(
             api_key=normal_cfg.api_key or "x",
             model=normal_cfg.default_model,
             api_base=normal_cfg.api_base,
+            rag_persist_dir=str((ROOT / "medqa_vectorstore").resolve()) if (ROOT / "medqa_vectorstore").exists() else None,
             use_two_step_retrieval=two_step_retrieval,
             use_struq=True,
             prompt_type=_def_prompt_type,

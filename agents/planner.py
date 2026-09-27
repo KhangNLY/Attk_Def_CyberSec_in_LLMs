@@ -342,7 +342,6 @@ PREVIOUS PLAN (if any issues, refine):
         for attempt in range(max_retries):
             try:
                 start = time.time()
-<<<<<<< HEAD
                 # Call LLM
                 call_kwargs = {
                     "model": self.model,
@@ -360,16 +359,6 @@ PREVIOUS PLAN (if any issues, refine):
                         response = self._client.chat.completions.create(**call_kwargs)
                     else:
                         raise
-=======
-                response = self._client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=0.3,
-                    max_tokens=2048,
-                    frequency_penalty=0.5,
-                    presence_penalty=0.5
-                )
->>>>>>> 6cb8c3a7999d7b5e429f50daefb5cd38441270b3
                 latency = time.time() - start
 
 
