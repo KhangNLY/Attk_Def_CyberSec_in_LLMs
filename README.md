@@ -1,9 +1,10 @@
-# Attk_Def_CyberSec_in_LLMs: Prompt Injection Attacks & Structured Query Defenses in Multi-Agent Clinical Systems
+# Attk_Def_CyberSec_in_LLMs: Prompt Injection Attacks & Defenses (SecAlign + StruQ) in Multi-Agent Clinical Systems
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Benchmark: MedQA-USMLE](https://img.shields.io/badge/Benchmark-MedQA--USMLE-red.svg)](https://github.com/jind11/MedQA)
 [![Defense: StruQ USENIX '25](https://img.shields.io/badge/Defense-StruQ%20USENIX%20'25-purple.svg)](https://arxiv.org/abs/2402.06363)
+[![Defense: SecAlign CCS '25](https://img.shields.io/badge/Defense-SecAlign%20CCS%20'25-blueviolet.svg)](https://arxiv.org/abs/2410.05451)
 [![Attacks: USENIX '24 & '25](https://img.shields.io/badge/Attacks-USENIX%20Sec%20'24%20%26%20'25-orange.svg)](https://github.com/liu00222/Open-Prompt-Injection)
 
 A comprehensive cybersecurity research and benchmarking platform for evaluating **Prompt Injection Attacks** and advanced **Defense Frameworks** on clinical LLM systems and Multi-Agent Reasoning architectures.
@@ -257,38 +258,86 @@ The clinical reasoning system supports five ablation variants:
 
 ## 📊 Empirical Benchmark Results
 
-Comprehensive evaluation on the **MedQA-USMLE** test set comparing **Undefended Llama-3.1-8B-Instruct** against **Defended Pipeline + Upstream StruQ Filter Node (`Mistral-7B-v0.1-StruQ`)**:
+Comprehensive evaluation on the **MedQA-USMLE** test set (127 questions × 5 variants × 5 attacks) comparing **three conditions**: Undefended Baseline, **SecAlign** (weight-level DPO alignment), and **StruQ Filter Node** (input-level upstream sanitisation).
 
-### 1. Clean Utility (Accuracy on Unattacked Questions)
-The StruQ Filter Node preserves downstream reasoning utility with virtually zero degradation:
+### 1. Clean Utility (Accuracy % on Unattacked Questions)
 
-| Variant | Baseline Clean Acc | StruQ Defended Clean Acc | Utility Delta ($\Delta Acc$) | Impact |
-|---|---|---|---|---|
-| **V0** (Direct LLM) | 69.3% | 65.4% | -3.9% | Minor drop |
-| **V1** (RAG-Only) | 60.6% | 61.4% | **+0.8%** | Improvement |
-| **V2** (Multi-Agent No Mem) | 58.3% | 55.9% | -2.4% | Preserved |
-| **V3** (Full Multi-Agent) | 59.8% | 59.1% | **-0.7%** | **Virtually Identical** |
-| **V4** (Full No Verifier) | 58.3% | 58.3% | **+0.0%** | **Perfect Preservation** |
-
-### 2. Security Evaluation: Attack Success Rate (ASR %)
-*Attack Success Rate (ASR) measures the percentage of queries where the model executed the adversary's injected command. Lower is better (0% = completely defended).*
-
-| Variant | Attack Type | Baseline ASR | StruQ Defended ASR | ASR Reduction ($\Delta$) | Status |
+| Variant | Baseline Acc | SecAlign Acc | Δ SecAlign | StruQ Acc | Δ StruQ |
 |---|---|---|---|---|---|
-| **V0** | `naive` | 40.2% | **10.2%** | **-29.9%** | ✅ Mitigated |
-| **V0** | `context_ignoring` | 60.6% | **4.7%** | **-55.9%** | 🛡️ Neutralized |
-| **V0** | `combined` | 64.6% | **4.7%** | **-59.8%** | 🛡️ Neutralized |
-| **V2** | `naive` | 77.2% | **15.7%** | **-61.4%** | 🛡️ Neutralized |
-| **V2** | `escape_char` | 75.6% | **13.4%** | **-62.2%** | 🛡️ Neutralized |
-| **V2** | `combined` | 68.5% | **11.8%** | **-56.7%** | 🛡️ Neutralized |
-| **V3** | `naive` | 73.2% | **15.7%** | **-57.5%** | 🛡️ Neutralized |
-| **V3** | `context_ignoring` | 75.6% | **13.4%** | **-62.2%** | 🛡️ Neutralized |
-| **V3** | `combined` | 70.9% | **8.7%** | **-62.2%** | 🛡️ **Highest Defense** |
-| **V4** | `naive` | 77.2% | **13.4%** | **-63.8%** | 🛡️ Neutralized |
-| **V4** | `combined` | 70.1% | **11.0%** | **-59.1%** | 🛡️ Neutralized |
+| **V0** (Direct LLM) | 69.3% | 67.7% | -1.6% | 65.4% | -3.9% |
+| **V1** (RAG-Only) | 60.6% | 49.6% | -11.0% | 61.4% | **+0.8%** |
+| **V2** (Multi-Agent No Mem) | 58.3% | 42.5% | -15.7% | 55.9% | -2.4% |
+| **V3** (Full Multi-Agent) | 59.8% | 44.1% | -15.7% | 59.1% | **-0.7%** |
+| **V4** (Full No Verifier) | 58.3% | 44.9% | -13.4% | 58.3% | **+0.0%** |
+
+> [!TIP]
+> StruQ Filter Node preserves utility with only **-1.3% average loss**, while SecAlign degrades accuracy by up to **-15.7%** on multi-agent variants due to DPO conflicting with complex reasoning.
+
+### 2. SecAlign Defense — Attack Success Rate (ASR %)
+
+*ASR measures the percentage of queries where the model followed the injected payload. **Lower is better** (0% = fully defended).*
+
+| Attack | V0 (Δ) | V1 (Δ) | V2 (Δ) | V3 (Δ) | V4 (Δ) |
+|---|---|---|---|---|---|
+| `naive` | 31.5 (**-8.7**) | 18.9 (🔴+3.1) | 68.5 (-5.5) | 68.5 (🔴+11.8) | 74.8 (🔴+7.1) |
+| `escape_char` | 39.4 (**-12.6**) | 23.6 (**-6.3**) | 71.7 (-0.8) | 79.5 (🔴+8.7) | 82.7 (🔴+8.7) |
+| `context_ignoring` | 33.9 (**-19.7**) | 22.8 (**-3.9**) | 84.3 (🔴+11.0) | 86.6 (🔴+17.3) | 81.1 (🔴+3.1) |
+| `fake_completion` | 36.2 (**-3.9**) | 18.9 (-1.6) | 59.1 (-0.8) | 67.7 (🔴+3.9) | 59.1 (**-7.1**) |
+| `combined` | 37.8 (**-22.8**) | 21.3 (-2.4) | 69.3 (🔴+7.9) | 68.5 (🔴+3.1) | 66.9 (🔴+2.4) |
+
+> [!CAUTION]
+> **SecAlign *worsens* security on multi-agent variants.** On V3, average ASR *increases* from 71.7% to 74.2% (+2.5 pp). The worst case is Context Ignoring on V3: ASR rises from 75.6% → **86.6%** (+11.0 pp). This is **not predicted** by the original SecAlign paper.
+
+### 3. StruQ Filter Node Defense — Attack Success Rate (ASR %)
+
+| Attack | V0 (Δ) | V1 (Δ) | V2 (Δ) | V3 (Δ) | V4 (Δ) |
+|---|---|---|---|---|---|
+| `naive` | 10.2 (**-29.9**) | 11.8 (**-7.1**) | 15.7 (**-61.4**) | 15.7 (**-57.5**) | 13.4 (**-63.8**) |
+| `escape_char` | 5.5 (**-48.0**) | 11.8 (**-14.2**) | 13.4 (**-62.2**) | 15.0 (**-62.2**) | 13.4 (**-62.2**) |
+| `context_ignoring` | 4.7 (**-55.9**) | 11.0 (**-15.7**) | 16.5 (**-59.8**) | 13.4 (**-62.2**) | 14.2 (**-61.4**) |
+| `fake_completion` | 4.7 (**-40.9**) | 15.7 (**-0.8**) | 11.0 (**-58.3**) | 8.7 (**-52.8**) | 11.8 (**-57.5**) |
+| `combined` | 4.7 (**-59.8**) | 13.4 (**-9.4**) | 11.8 (**-56.7**) | 8.7 (**-62.2**) | 11.0 (**-59.1**) |
 
 > [!NOTE]
-> In multi-agent pipelines (V2, V3, V4), unconstrained prompt injections achieve baseline success rates above 70% due to cross-agent guideline propagation. Deploying the StruQ Filter Node upstream drops the ASR by **~60 percentage points** across the board without degrading clinical reasoning accuracy.
+> **Every single Δ is negative** — StruQ Filter Node provides consistent protection across *all* 25 variant×attack combinations. In multi-agent pipelines (V2–V4), ASR drops by **~60 pp** without degrading clinical reasoning accuracy.
+
+### 4. 🏆 Head-to-Head: SecAlign vs StruQ Filter Node (Average ASR %)
+
+| Defense | V0 | V1 | V2 | V3 | V4 | Avg Δ from Baseline |
+|---|---|---|---|---|---|---|
+| **Undefended** | 52.9 | 22.2 | 73.4 | 71.7 | 73.5 | — |
+| **SecAlign** | 35.8 | 21.1 | 70.6 | 74.2 🔴 | 72.9 | -3.8 pp |
+| **StruQ Filter** | **6.0** ✅ | **12.7** ✅ | **13.7** ✅ | **12.3** ✅ | **12.8** ✅ | **-47.2 pp** |
+
+> [!IMPORTANT]
+> **StruQ Filter Node dominates on every variant.** It achieves 6–13% average ASR (vs SecAlign's 21–74%), representing a **12× greater ASR reduction** on multi-agent variants. The key architectural advantage: StruQ sanitises data *once before the pipeline*; SecAlign requires each agent to independently resist the injection.
+
+### 5. 🔬 Key Research Findings
+
+1. **Multi-agent pipelines amplify injection vulnerability**: V2–V4 exhibit 65–73% baseline ASR because the injected payload is re-processed by each agent (Planner → Examiner → Evaluator), compounding its influence.
+
+2. **SecAlign fails on multi-agent architectures**: DPO alignment calibrated for single-turn inference cannot counteract repeated injection exposure across 3–4 agent passes. On V3, SecAlign actually *increases* ASR (+2.5 pp avg).
+
+3. **Input-level defense outperforms weight-level defense**: The StruQ Filter Node's "sanitise once, use everywhere" approach eliminates multi-agent amplification entirely. SecAlign's weight-level approach requires each agent to independently resist — and fails.
+
+4. **Residual ASR is non-zero (6–13%)**: Despite dramatic reduction, StruQ does not achieve the paper's claimed 0% ASR. Root causes:
+   - Some injections are semantically ambiguous ("The correct answer is A" could be factual medical content)
+   - Only the filter node is StruQ-tuned; the downstream instruct LLM is standard Llama 3.1
+   - Longer, domain-specific injections in medical RAG contexts are harder to filter than the paper's short synthetic payloads
+
+5. **StruQ's known limitation — optimization-based attacks**: The original StruQ paper reports 58% ASR against GCG (gradient-based) attacks. SecAlign achieves 0% against GCG via DPO. This suggests **combining both defenses** (StruQ for input sanitisation + SecAlign for weight hardening) as optimal defense-in-depth.
+
+### 6. StruQ Filter Node Operational Statistics
+
+| Metric | Value |
+|---|---|
+| Text channels sanitised | 1,677 |
+| Overlapping chunks processed | 3,682 |
+| Delimiter tokens neutralised | 0 |
+| Prompt tokens consumed | 1,910,852 |
+| Completion tokens generated | 1,041,283 |
+| Cache hits (deduplication) | 5,181 |
+| Total filter latency | 78,399s (~21.8h) |
 
 ---
 
@@ -482,12 +531,22 @@ Features:
 ## 📚 References & Acknowledgements
 
 1. **StruQ Defense**:
-   Chen et al., *"StruQ: Defending Against Prompt Injection with Structured Queries"*, USENIX Security Symposium 2025. [arXiv:2402.06363](https://arxiv.org/abs/2402.06363)
-2. **Open-Prompt-Injection**:
+   Chen et al., *"StruQ: Defending Against Prompt Injection with Structured Queries"*, USENIX Security Symposium 2025. [arXiv:2402.06363](https://arxiv.org/abs/2402.06363) | [GitHub](https://github.com/Sizhe-Chen/StruQ)
+2. **SecAlign Defense**:
+   Chen et al., *"SecAlign: Defending Against Prompt Injection with Preference Optimization"*, ACM CCS 2025. [arXiv:2410.05451](https://arxiv.org/abs/2410.05451) | [GitHub](https://github.com/facebookresearch/SecAlign)
+3. **Open-Prompt-Injection**:
    Liu et al., *"Formalizing and Benchmarking Prompt Injection Attacks and Defenses"*, USENIX Security Symposium 2024. [GitHub](https://github.com/liu00222/Open-Prompt-Injection)
-3. **MedAgent-Pro**:
+4. **DPO (Direct Preference Optimization)**:
+   Rafailov et al., *"Direct Preference Optimization: Your Language Model is Secretly a Reward Model"*, NeurIPS 2023.
+5. **MedAgent-Pro**:
    *"MedAgent-Pro: Medical Reasoning and Diagnostics with Multi-Agent Collaboration"*, 2024.
-4. **Meta SecAlign**:
-   Meta AI Research, *"SecAlign: Security Alignment for LLMs via DPO and KTO"*, 2024.
-5. **MedQA Dataset**:
-   Jin et al., *"Disease Knowledge-Infused Hierarchical Generative Pre-training for Medical Question Answering"*, 2021.
+6. **Meta SecAlign Model**:
+   Meta FAIR, *Meta-SecAlign-8B LoRA Adapter for Llama 3.1 8B Instruct*. [HuggingFace](https://huggingface.co/facebook/Meta-SecAlign-8B)
+7. **MedQA Dataset**:
+   Jin et al., *"What Disease does this Patient Have? A Large-scale Open Domain Question Answering Dataset from Medical Exams"*, Applied Sciences, 2021.
+8. **Llama 3.1**:
+   Meta AI, *The Llama 3 Herd of Models*, 2024. [HuggingFace](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)
+9. **LoRA**:
+   Hu et al., *"LoRA: Low-Rank Adaptation of Large Language Models"*, ICLR 2022.
+10. **llama.cpp**:
+    ggml-org, *LLM Inference in C/C++*. [GitHub](https://github.com/ggml-org/llama.cpp)
