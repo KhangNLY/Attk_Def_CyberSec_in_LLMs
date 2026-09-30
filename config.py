@@ -69,6 +69,20 @@ class DefenseModelConfig:
 
 
 @dataclass
+class StruQFilterConfig:
+    """StruQ Filter Node configuration."""
+    api_base: str = "http://192.168.33.208:5002/v1/"
+    api_key: str = "x"
+    model_name: str = "Mistral-7B-v0.1-StruQ"
+    chunk_size: int = 350
+    overlap_tokens: int = 35
+    max_tokens: int = 8192
+    temperature: float = 0.0
+    timeout: float = 300.0
+    delimiter_style: str = "SpclSpclSpcl"
+
+
+@dataclass
 class EvalConfig:
     """Evaluation configuration."""
     max_questions: Optional[int] = None
@@ -94,6 +108,7 @@ class Config:
         self._model: Optional[ModelConfig] = None
         self._normal_model: Optional[ModelConfig] = None
         self._defense_model: Optional[DefenseModelConfig] = None
+        self._struq_filter: Optional[StruQFilterConfig] = None
         self._eval: Optional[EvalConfig] = None
 
     @property
@@ -184,6 +199,23 @@ class Config:
         return self._defense_model
 
     @property
+    def struq_filter(self) -> StruQFilterConfig:
+        """StruQ Filter Node configuration."""
+        if self._struq_filter is None:
+            self._struq_filter = StruQFilterConfig(
+                api_base=os.environ.get("STRUQ_FILTER_API_BASE", "http://192.168.33.208:5002/v1/"),
+                api_key=os.environ.get("STRUQ_FILTER_API_KEY", "x"),
+                model_name=os.environ.get("STRUQ_FILTER_MODEL", "Mistral-7B-v0.1-StruQ"),
+                chunk_size=int(os.environ.get("STRUQ_FILTER_CHUNK_SIZE", "350")),
+                overlap_tokens=int(os.environ.get("STRUQ_FILTER_OVERLAP_TOKENS", "35")),
+                max_tokens=int(os.environ.get("STRUQ_FILTER_MAX_TOKENS", "8192")),
+                temperature=float(os.environ.get("STRUQ_FILTER_TEMPERATURE", "0.0")),
+                timeout=float(os.environ.get("STRUQ_FILTER_TIMEOUT", "300.0")),
+                delimiter_style=os.environ.get("STRUQ_DELIMITER_STYLE", "SpclSpclSpcl"),
+            )
+        return self._struq_filter
+
+    @property
     def eval(self) -> EvalConfig:
         if self._eval is None:
             max_q = os.environ.get("MAX_QUESTIONS")
@@ -257,6 +289,13 @@ def get_defense_model_config() -> DefenseModelConfig:
     if not _config._loaded:
         load_config()
     return _config.defense_model
+
+
+def get_struq_filter_config() -> StruQFilterConfig:
+    """Get StruQ Filter Node configuration."""
+    if not _config._loaded:
+        load_config()
+    return _config.struq_filter
 
 
 def get_eval_config() -> EvalConfig:

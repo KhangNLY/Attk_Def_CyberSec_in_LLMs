@@ -392,6 +392,8 @@ class MedQAEvaluator:
                     with open(variant_path, "r", encoding="utf-8") as f:
                         saved_data = json.load(f)
                     for item in saved_data:
+                        if not item.get("is_valid", False):
+                            continue
                         res = SolveResult(**item)
                         variant_results.append(res)
                         completed_qids.add(res.question_id)

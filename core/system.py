@@ -33,8 +33,13 @@ try:
         from ..agents.planner import MedQA_Planner, ReasoningStep
         from ..agents.examiner import MedQA_Examiner
         from ..agents.evaluator import MedQA_Evaluator, EvaluationStatus, VerificationResult
-        from ..rag.data_loader import MedQAQuestion
-        from .struq_defense import StruQFrontEnd, format_struq_query, format_secalign_chat_query, clean_struq_output
+        from .struq_defense import (
+            StruQFrontEnd,
+            StruQFilterNode,
+            format_struq_query,
+            format_secalign_chat_query,
+            clean_struq_output,
+        )
     else:
         raise ImportError("Top-level execution requires absolute package import")
 except (ImportError, ValueError):
@@ -60,7 +65,13 @@ except (ImportError, ValueError):
     from medqa_rag.agents.examiner import MedQA_Examiner
     from medqa_rag.agents.evaluator import MedQA_Evaluator, EvaluationStatus, VerificationResult
     from medqa_rag.rag.data_loader import MedQAQuestion
-    from medqa_rag.core.struq_defense import StruQFrontEnd, format_struq_query, format_secalign_chat_query, clean_struq_output
+    from medqa_rag.core.struq_defense import (
+        StruQFrontEnd,
+        StruQFilterNode,
+        format_struq_query,
+        format_secalign_chat_query,
+        clean_struq_output,
+    )
 
 
 class Variant(Enum):
@@ -379,6 +390,13 @@ REASONING: [concise evidence-based explanation]"""
         repetition_penalty: Optional[float] = None,
         struq_repetition_penalty: Optional[float] = None,
         prompt_type: str = "instruct",
+        struq_filter_api_base: Optional[str] = None,
+        struq_filter_api_key: Optional[str] = None,
+        struq_filter_model: Optional[str] = None,
+        struq_filter_chunk_size: int = 350,
+        struq_filter_overlap_tokens: int = 35,
+        struq_filter_max_tokens: int = 8192,
+        struq_mode: str = "filter_node",
     ):
         """
         Initialize the MedQA system.
@@ -468,6 +486,31 @@ REASONING: [concise evidence-based explanation]"""
         if struq_repetition_penalty is None and defense_cfg:
             struq_repetition_penalty = getattr(defense_cfg, "repetition_penalty", None)
         self.struq_repetition_penalty = struq_repetition_penalty
+
+        # StruQ Secure Front-End Filter Node configuration
+        self.struq_mode = struq_mode
+        self.struq_filter_chunk_size = struq_filter_chunk_size
+        self.struq_filter_overlap_tokens = struq_filter_overlap_tokens
+        self.struq_filter_max_tokens = struq_filter_max_tokens
+        self.struq_filter_api_base = (
+            struq_filter_api_base
+            or os.environ.get("STRUQ_FILTER_API_BASE")
+            or struq_api_base
+            or os.environ.get("DEFENSE_API_BASE", "http://192.168.33.165:5002/v1/")
+        )
+        self.struq_filter_model = (
+            struq_filter_model
+            or os.environ.get("STRUQ_FILTER_MODEL")
+            or struq_model
+            or os.environ.get("DEFENSE_MODEL", "Mistral-7B-v0.1-StruQ")
+        )
+        self.struq_filter_api_key = (
+            struq_filter_api_key
+            or os.environ.get("STRUQ_FILTER_API_KEY")
+            or struq_api_key
+            or os.environ.get("DEFENSE_API_KEY", "x")
+        )
+        self._struq_filter_node: Optional[StruQFilterNode] = None
 
         # Initialize StruQ front-end
         self.struq_front_end = StruQFrontEnd(
@@ -639,8 +682,31 @@ REASONING: [concise evidence-based explanation]"""
                 self.struq_api_base or self.api_base,
                 repetition_penalty=self.struq_repetition_penalty,
             )
-        return self._secalign_evaluator
+    @property
+    def struq_filter_node(self) -> StruQFilterNode:
+        """Lazy load StruQ Filter Node."""
+        if self._struq_filter_node is None:
+            try:
+                if __package__ and "." in __package__:
+                    from .struq_defense import StruQFilterNode
+                else:
+                    raise ImportError
+            except (ImportError, ValueError):
+                from medqa_rag.core.struq_defense import StruQFilterNode
 
+            self._struq_filter_node = StruQFilterNode(
+                api_base=self.struq_filter_api_base,
+                api_key=self.struq_filter_api_key,
+                model_name=self.struq_filter_model,
+                delimiter_format=self.struq_delimiter_style or "SpclSpclSpcl",
+                chunk_size=self.struq_filter_chunk_size,
+                overlap_tokens=self.struq_filter_overlap_tokens,
+                max_tokens=self.struq_filter_max_tokens,
+                temperature=self.struq_temperature if self.struq_temperature is not None else 0.0,
+                timeout=self.struq_timeout or 300.0,
+                enabled=True,
+            )
+        return self._struq_filter_node
 
     def solve(
         self,
@@ -683,12 +749,72 @@ REASONING: [concise evidence-based explanation]"""
         except ValueError:
             variant_enum = Variant.V3_FULL
 
-        defense_str = (" [SecAlign Defense]" if self._defense_uses_chat else " [StruQ Defense]") if struq_active else ""
+        defense_str = (
+            " [StruQ Filter Defense]"
+            if getattr(self, "struq_mode", "filter_node") == "filter_node"
+            else (" [SecAlign Defense]" if self._defense_uses_chat else " [StruQ Defense]")
+        ) if struq_active else ""
         print(f"\n[{question_id}] Solving with {variant_enum.value}{defense_str}..." +
               (" [Two-step Retrieval]" if use_two_step else ""))
 
         try:
-            # Route to appropriate method
+            # ── StruQ Filter Node Architecture ───────────────────────────────
+            # Defense pipeline is identical to attack pipeline (using instruct model
+            # and standard system prompt across all variants V0-V4 and agents),
+            # preceded by the StruQ filter node which sanitizes untrusted user
+            # question, RAG data, and guidelines.
+            if struq_active and getattr(self, "struq_mode", "filter_node") == "filter_node":
+                filter_node = self.struq_filter_node
+                clean_question = filter_node.filter_text(question)
+                clean_options = filter_node.filter_options(options)
+                clean_guidelines = filter_node.filter_text(guidelines) if guidelines is not None else None
+
+                # For RAG variants (V1-V4), if guidelines was not pre-supplied, retrieve & sanitize
+                if clean_guidelines is None and variant_enum != Variant.V0_DIRECT:
+                    raw_guidelines = self._get_guidelines(
+                        clean_question, clean_options, None, top_k, use_two_step, book_names
+                    )
+                    clean_guidelines = filter_node.filter_text(raw_guidelines)
+
+                # Route through normal pipeline (using instruct model with standard system prompts)
+                if variant_enum == Variant.V0_DIRECT:
+                    res = self._solve_v0(
+                        clean_question, clean_options, correct_answer, question_id,
+                        use_struq=False
+                    )
+                elif variant_enum == Variant.V1_RAG_ONLY:
+                    res = self._solve_v1(
+                        clean_question, clean_options, correct_answer, question_id,
+                        clean_guidelines, top_k, use_two_step, book_names,
+                        use_struq=False
+                    )
+                elif variant_enum == Variant.V2_NO_MEMORY:
+                    res = self._solve_v2(
+                        clean_question, clean_options, correct_answer, question_id,
+                        clean_guidelines, top_k, use_two_step, book_names,
+                        use_struq=False
+                    )
+                elif variant_enum == Variant.V3_FULL:
+                    res = self._solve_v3(
+                        clean_question, clean_options, correct_answer, question_id,
+                        clean_guidelines, top_k, use_two_step, book_names,
+                        use_struq=False
+                    )
+                elif variant_enum == Variant.V4_NO_VERIFIER:
+                    res = self._solve_v4(
+                        clean_question, clean_options, correct_answer, question_id,
+                        clean_guidelines, top_k, use_two_step, book_names,
+                        use_struq=False
+                    )
+
+                res.metadata["defense"] = "struq_filter_node"
+                res.metadata["filter_model_used"] = filter_node.model_name
+                res.metadata["filter_api_base"] = filter_node.api_base
+                res.metadata["struq_filtered_tokens"] = filter_node.total_filtered_tokens
+                res.metadata["struq_stats"] = filter_node.get_stats()
+                return res
+
+            # Route to appropriate method (legacy or undefended)
             if variant_enum == Variant.V0_DIRECT:
                 return self._solve_v0(
                     question, options, correct_answer, question_id,
@@ -747,7 +873,11 @@ REASONING: [concise evidence-based explanation]"""
         use_struq: bool = False,
     ) -> SolveResult:
         """V0: Direct LLM without RAG or agents."""
-        defense_label = (" [SecAlign Defense]" if self._defense_uses_chat else " [StruQ Defense]") if use_struq else ""
+        defense_label = (
+            " [StruQ Filter Defense]"
+            if getattr(self, "struq_mode", "filter_node") == "filter_node"
+            else (" [SecAlign Defense]" if self._defense_uses_chat else " [StruQ Defense]")
+        ) if use_struq else ""
         print(f"[{question_id}] V0: Direct LLM baseline{defense_label}")
 
         options_text = "\n".join(f"({k}) {v}" for k, v in options.items())
@@ -870,7 +1000,11 @@ REASONING: [concise evidence-based explanation]"""
         use_struq: bool = False,
     ) -> SolveResult:
         """V1: RAG context + direct LLM (no agents)."""
-        defense_label = (" [SecAlign Defense]" if self._defense_uses_chat else " [StruQ Defense]") if use_struq else ""
+        defense_label = (
+            " [StruQ Filter Defense]"
+            if getattr(self, "struq_mode", "filter_node") == "filter_node"
+            else (" [SecAlign Defense]" if self._defense_uses_chat else " [StruQ Defense]")
+        ) if use_struq else ""
         print(f"[{question_id}] V1: RAG + Direct LLM" +
               (" [Two-step]" if use_two_step else "") + defense_label)
 
@@ -1016,7 +1150,11 @@ Options:
                         (bypasses the multi-agent pipeline for base/uninstruct models).
         - Instruct    : full Planner → Examiner (no memory) → Evaluator pipeline.
         """
-        defense_label = (" [SecAlign Defense]" if self._defense_uses_chat else " [StruQ Defense]") if use_struq else ""
+        defense_label = (
+            " [StruQ Filter Defense]"
+            if getattr(self, "struq_mode", "filter_node") == "filter_node"
+            else (" [SecAlign Defense]" if self._defense_uses_chat else " [StruQ Defense]")
+        ) if use_struq else ""
         print(f"[{question_id}] V2: Multi-agent (no memory)" +
               (" [Two-step]" if use_two_step else "") + defense_label)
 
@@ -1343,7 +1481,11 @@ Options:
                         (bypasses the multi-agent pipeline for base/uninstruct models).
         - Instruct    : full Planner → Examiner (with memory) → Evaluator revision loop.
         """
-        defense_label = (" [SecAlign Defense]" if self._defense_uses_chat else " [StruQ Defense]") if use_struq else ""
+        defense_label = (
+            " [StruQ Filter Defense]"
+            if getattr(self, "struq_mode", "filter_node") == "filter_node"
+            else (" [SecAlign Defense]" if self._defense_uses_chat else " [StruQ Defense]")
+        ) if use_struq else ""
         print(f"[{question_id}] V3: Full system (with memory)" +
               (" [Two-step]" if use_two_step else "") + defense_label)
 
@@ -1669,7 +1811,11 @@ Options:
                         (bypasses the multi-agent pipeline for base/uninstruct models).
         - Instruct    : Planner → Examiner (with memory), no Evaluator.
         """
-        defense_label = (" [SecAlign Defense]" if self._defense_uses_chat else " [StruQ Defense]") if use_struq else ""
+        defense_label = (
+            " [StruQ Filter Defense]"
+            if getattr(self, "struq_mode", "filter_node") == "filter_node"
+            else (" [SecAlign Defense]" if self._defense_uses_chat else " [StruQ Defense]")
+        ) if use_struq else ""
         print(f"[{question_id}] V4: Full system (no evaluator)" +
               (" [Two-step]" if use_two_step else "") + defense_label)
 
